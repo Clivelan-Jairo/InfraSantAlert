@@ -1,72 +1,139 @@
-// script.js — lógica frontend para InfraSantAlert
-// Usa fetch() para comunicar com a API Express
+// script.js - dashboard InfraSantAlert
+// Mantem compatibilidade com as rotas atuais: GET /vias e POST /vias
 
-// Variáveis que serão inicializadas após o DOM carregar
 let viaForm;
 let viasList;
+let listState;
+let submitBtn;
+let refreshBtn;
+let toastStack;
+let totalViasEl;
+let totalManutencaoEl;
+let totalInterditadasEl;
 
-// Carrega vias e inicializa listeners ao abrir a página
 document.addEventListener('DOMContentLoaded', () => {
-  // Seleciona elementos do DOM agora que estão disponíveis
   viaForm = document.getElementById('viaForm');
   viasList = document.getElementById('viasList');
+  listState = document.getElementById('listState');
+  submitBtn = document.getElementById('submitBtn');
+  refreshBtn = document.getElementById('refreshBtn');
+  toastStack = document.getElementById('toastStack');
 
-  if (!viaForm) {
-    console.error('Formulário `viaForm` não encontrado no DOM');
+  totalViasEl = document.getElementById('totalVias');
+  totalManutencaoEl = document.getElementById('totalManutencao');
+  totalInterditadasEl = document.getElementById('totalInterditadas');
+
+  if (!viaForm || !viasList) {
+    console.error('Elementos principais do dashboard nao foram encontrados.');
     return;
   }
 
-  // Adiciona listener de submit no formulário
   viaForm.addEventListener('submit', handleSubmit);
+  refreshBtn.addEventListener('click', () => {
+    loadVias(true);
+  });
 
-  // Carrega vias iniciais
-  loadVias();
+  loadVias(false);
 });
 
-// Função para buscar vias da API
-async function loadVias() {
+async function loadVias(showInfoToast) {
+  setListState('Carregando dados...');
+
   try {
     const res = await fetch('/vias');
-    const vias = await res.json();
-    // Se a API retornou um objeto de erro em vez de um array, log e mostra mensagem
-    if (!Array.isArray(vias)) {
-      console.error('Resposta inesperada de /vias:', vias);
-      viasList.innerHTML = `<p class="error">Erro ao carregar vias: ${escapeHtml(vias && vias.error ? vias.error : JSON.stringify(vias))}</p>`;
-      return;
+    const body = await safeJson(res);
+
+    if (!res.ok) {
+      throw new Error(body && body.error ? body.error : 'Erro ao obter vias');
     }
-    renderVias(vias);
+
+    if (!Array.isArray(body)) {
+      throw new Error('Formato inesperado retornado pela API');
+    }
+
+    renderVias(body);
+    updateStats(body);
+
+    if (showInfoToast) {
+      showToast('Lista atualizada com sucesso.', 'info');
+    }
   } catch (err) {
-    console.error('Erro ao carregar vias', err);
+    console.error('Erro ao carregar vias:', err);
+    setListState('Nao foi possivel carregar as vias no momento.');
+    renderVias([]);
+    updateStats([]);
+    showToast(err.message || 'Falha ao carregar vias.', 'error');
   }
 }
 
-// Renderiza lista de vias
 function renderVias(vias) {
   viasList.innerHTML = '';
-  if (!vias || vias.length === 0) {
-    viasList.innerHTML = '<p>Nenhuma via cadastrada.</p>';
+
+  if (!vias.length) {
+    setListState('Nenhuma via cadastrada ate o momento.');
     return;
   }
 
-  vias.forEach(v => {
-    const card = document.createElement('div');
-    card.className = 'via-card';
-    const previsao = v.previsaoLiberacao ? `• Previsão: ${formatDate(v.previsaoLiberacao)}` : '';
+  setListState('');
+
+  vias.forEach((via, index) => {
+    const statusClass = normalizeStatus(via.status);
+    const card = document.createElement('article');
+    card.className = `via-card status-${statusClass}`;
+    card.style.animationDelay = `${index * 40}ms`;
+
     card.innerHTML = `
-      <h3>${escapeHtml(v.rua)}</h3>
-      <div class="via-meta">${escapeHtml(v.bairro)} • ${escapeHtml(v.status)} ${previsao}</div>
-      <div class="via-desc">${escapeHtml(v.motivo || '')}</div>
+      <div class="via-top">
+        <h3>${escapeHtml(via.rua || 'Via nao informada')}</h3>
+        <span class="status-pill ${statusClass}">${escapeHtml(via.status || 'Sem status')}</span>
+      </div>
+      <p class="via-meta">Bairro: ${escapeHtml(via.bairro || '-')}</p>
+      <p class="via-meta">Previsao: ${formatDate(via.previsaoLiberacao)}</p>
+      <p class="via-date">Cadastro: ${formatDate(via.dataCadastro)}</p>
+      <p class="via-desc">${escapeHtml(via.motivo || 'Sem observacoes informadas.')}</p>
+      <div class="via-actions">
+        <button class="mini-btn success js-liberar" data-id="${escapeHtml(via._id || '')}">Marcar liberada</button>
+        <div class="date-update-wrap">
+          <input class="mini-date js-previsao" type="date" value="${toDateInputValue(via.previsaoLiberacao)}" />
+          <button class="mini-btn neutral js-salvar-previsao" data-id="${escapeHtml(via._id || '')}">Salvar previsao</button>
+        </div>
+      </div>
     `;
+
+    const liberarBtn = card.querySelector('.js-liberar');
+    const salvarPrevisaoBtn = card.querySelector('.js-salvar-previsao');
+    const previsaoInput = card.querySelector('.js-previsao');
+
+    liberarBtn.addEventListener('click', async () => {
+      await updateVia(via._id, { status: 'Liberada' }, 'Via marcada como liberada.');
+    });
+
+    salvarPrevisaoBtn.addEventListener('click', async () => {
+      const novaPrevisao = previsaoInput.value || null;
+      await updateVia(via._id, { previsaoLiberacao: novaPrevisao }, 'Previsao atualizada com sucesso.');
+    });
+
     viasList.appendChild(card);
   });
 }
 
-// Handler do submit separado para facilitar debug
-async function handleSubmit(e) {
-  e.preventDefault();
-  if (!viaForm) return;
+function updateStats(vias) {
+  const total = vias.length;
+  const manutencao = vias.filter((v) => {
+    const s = normalizeStatus(v.status);
+    return s === 'manutencao' || s === 'parcial';
+  }).length;
+  const interditadas = vias.filter((v) => normalizeStatus(v.status) === 'interditada').length;
 
-  const data = {
+  totalViasEl.textContent = String(total);
+  totalManutencaoEl.textContent = String(manutencao);
+  totalInterditadasEl.textContent = String(interditadas);
+}
+
+async function handleSubmit(event) {
+  event.preventDefault();
+
+  const payload = {
     rua: viaForm.rua.value.trim(),
     bairro: viaForm.bairro.value.trim(),
     status: viaForm.status.value,
@@ -74,46 +141,150 @@ async function handleSubmit(e) {
     previsaoLiberacao: viaForm.previsaoLiberacao.value || null,
   };
 
+  setButtonLoading(true);
+
   try {
-    console.log('Enviando dados:', data);
     const res = await fetch('/vias', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
 
+    const body = await safeJson(res);
+
     if (!res.ok) {
-      // tentar extrair mensagem de erro do corpo
-      let errMsg = 'Falha ao cadastrar via';
-      try {
-        const body = await res.json();
-        errMsg = body && body.error ? body.error : JSON.stringify(body);
-      } catch (e) {
-        // não há JSON
-      }
-      throw new Error(errMsg);
+      throw new Error(body && body.error ? body.error : 'Erro ao cadastrar via');
     }
 
-    // Limpa formulário e atualiza lista
     viaForm.reset();
-    await loadVias();
+    showToast('Via cadastrada com sucesso.', 'success');
+    await loadVias(false);
   } catch (err) {
-    console.error(err);
-    alert('Erro ao cadastrar via. Verifique o console.');
+    console.error('Erro ao cadastrar via:', err);
+    showToast(err.message || 'Falha ao cadastrar via.', 'error');
+  } finally {
+    setButtonLoading(false);
   }
 }
 
-// Helpers
+async function updateVia(viaId, payload, successMessage) {
+  if (!viaId) {
+    showToast('Nao foi possivel identificar a via selecionada.', 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch(`/vias/${encodeURIComponent(viaId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const body = await safeJson(res);
+
+    if (!res.ok) {
+      throw new Error(getApiErrorMessage(body, 'Erro ao atualizar via'));
+    }
+
+    showToast(successMessage, 'success');
+    await loadVias(false);
+  } catch (err) {
+    console.error('Erro ao atualizar via:', err);
+    showToast(err.message || 'Falha ao atualizar via.', 'error');
+  }
+}
+
+function normalizeStatus(status) {
+  if (!status) return 'manutencao';
+
+  const text = String(status)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  if (text.includes('interdit')) return 'interditada';
+  if (text.includes('liberad')) return 'liberada';
+  if (text.includes('parcial')) return 'parcial';
+  return 'manutencao';
+}
+
+function setListState(message) {
+  if (!listState) return;
+
+  if (!message) {
+    listState.textContent = '';
+    listState.classList.add('hidden');
+    return;
+  }
+
+  listState.textContent = message;
+  listState.classList.remove('hidden');
+}
+
+function setButtonLoading(isLoading) {
+  if (!submitBtn) return;
+
+  submitBtn.classList.toggle('loading', isLoading);
+  submitBtn.disabled = isLoading;
+}
+
+function showToast(message, type) {
+  if (!toastStack) return;
+
+  const toast = document.createElement('div');
+  toast.className = `toast ${type || 'info'}`;
+  toast.textContent = message;
+  toastStack.appendChild(toast);
+
+  window.setTimeout(() => {
+    toast.remove();
+  }, 3200);
+}
+
 function escapeHtml(text) {
   if (!text) return '';
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 function formatDate(value) {
+  if (!value) return 'Nao informada';
+
   try {
-    const d = new Date(value);
-    return d.toLocaleDateString();
-  } catch (e) {
-    return value;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleDateString('pt-BR');
+  } catch (err) {
+    return String(value);
+  }
+}
+
+function toDateInputValue(value) {
+  if (!value) return '';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    const maybeIso = String(value);
+    return /^\d{4}-\d{2}-\d{2}$/.test(maybeIso) ? maybeIso : '';
+  }
+
+  return date.toISOString().slice(0, 10);
+}
+
+function getApiErrorMessage(body, fallback) {
+  if (!body || typeof body !== 'object') return fallback;
+  return body.error || body.erro || fallback;
+}
+
+async function safeJson(response) {
+  try {
+    return await response.json();
+  } catch (err) {
+    return null;
   }
 }
