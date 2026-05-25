@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="pt-BR">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>InfraSantAlert</title>
+        <link rel="stylesheet" href="style.css" />
+    </head>
+    <body>
+        <header class="header">
+            <div class="container">
+                <h1>InfraSantAlert</h1>
+                <p class="subtitle">Sistema informativo de vias em manutenção — Santarém</p>
+            </div>
+        </header>
+
+        <main class="container main-grid">
+            <section class="card form-card">
+                <h2>Cadastrar via</h2>
+                <form id="viaForm">
+                    <div class="field">
+                        <label for="rua">Rua</label>
+                        <input id="rua" name="rua" required />
+                    </div>
+                    <div class="field">
+                        <label for="bairro">Bairro</label>
+                        <input id="bairro" name="bairro" required />
+                    </div>
+                    <div class="field">
+                        <label for="status">Status</label>
+                        <select id="status" name="status" required>
+                            <option value="Interditada">Interditada</option>
+                            <option value="Manutenção">Manutenção</option>
+                            <option value="Parcial">Parcial</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="motivo">Motivo</label>
+                        <textarea id="motivo" name="motivo" rows="3"></textarea>
+                    </div>
+                    <div class="field">
+                        <label for="previsaoLiberacao">Previsão de liberação</label>
+                        <input id="previsaoLiberacao" name="previsaoLiberacao" type="date" />
+                    </div>
+                    <div class="actions">
+                        <button type="submit" class="btn primary">Cadastrar</button>
+                    </div>
+                </form>
+            </section>
+
+            <section class="card list-card">
+                <h2>Vias cadastradas</h2>
+                <div id="viasList" class="vias-list"></div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <div class="container">InfraSantAlert — Santarém • Dados em tempo real</div>
+        </footer>
+
+        <script src="script.js"></script>
+    </body>
+</html>
