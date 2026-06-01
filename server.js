@@ -41,6 +41,32 @@ app.use((req, res, next) => {
 
 const Via = require('./models/Via');
 
+function normalizeDateOnly(value) {
+
+    if (value === undefined || value === null) {
+        return null;
+    }
+
+    const text = String(value).trim();
+
+    if (!text) {
+        return null;
+    }
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+        return text;
+    }
+
+    const date = new Date(text);
+
+    if (Number.isNaN(date.getTime())) {
+        return text;
+    }
+
+    return date.toISOString().slice(0, 10);
+
+}
+
 // ===============================
 // Conexão MongoDB
 // ===============================
@@ -123,7 +149,7 @@ app.post('/vias', async (req, res) => {
             bairro,
             status,
             motivo,
-            previsaoLiberacao
+            previsaoLiberacao: normalizeDateOnly(previsaoLiberacao)
 
         });
 
@@ -215,7 +241,7 @@ app.patch('/vias/:id', async (req, res) => {
         }
 
         if (typeof previsaoLiberacao === 'string' || previsaoLiberacao === null) {
-            updateData.previsaoLiberacao = previsaoLiberacao;
+            updateData.previsaoLiberacao = normalizeDateOnly(previsaoLiberacao);
         }
 
         if (!Object.keys(updateData).length) {
@@ -248,6 +274,99 @@ app.patch('/vias/:id', async (req, res) => {
         res.status(500).json({
             erro: 'Erro ao atualizar via'
         });
+
+    }
+
+});
+
+// --------------------------------
+// PUT /vias/:id
+// Atualiza via completa (rua, bairro, status, motivo, previsaoLiberacao)
+// --------------------------------
+
+app.put('/vias/:id', async (req, res) => {
+
+    try {
+
+        const { id } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ erro: 'ID invalido' });
+        }
+
+        const {
+            rua,
+            bairro,
+            status,
+            motivo,
+            previsaoLiberacao
+        } = req.body;
+
+        const updateData = {};
+
+        if (typeof rua === 'string' && rua.trim()) updateData.rua = rua.trim();
+        if (typeof bairro === 'string' && bairro.trim()) updateData.bairro = bairro.trim();
+        if (typeof status === 'string' && status.trim()) updateData.status = status.trim();
+        if (typeof motivo === 'string') updateData.motivo = motivo;
+        if (typeof previsaoLiberacao === 'string' || previsaoLiberacao === null) updateData.previsaoLiberacao = normalizeDateOnly(previsaoLiberacao);
+
+        if (!Object.keys(updateData).length) {
+            return res.status(400).json({ erro: 'Informe ao menos um campo para atualizar' });
+        }
+
+        const viaAtualizada = await Via.findByIdAndUpdate(
+            id,
+            updateData,
+            {
+                new: true,
+                runValidators: true
+            }
+        );
+
+        if (!viaAtualizada) {
+            return res.status(404).json({ erro: 'Via nao encontrada' });
+        }
+
+        res.json(viaAtualizada);
+
+    } catch (error) {
+
+        console.log(error);
+
+        res.status(500).json({ erro: 'Erro ao atualizar via' });
+
+    }
+
+});
+
+// --------------------------------
+// DELETE /vias/:id
+// Remove via do banco
+// --------------------------------
+
+app.delete('/vias/:id', async (req, res) => {
+
+    try {
+
+        const { id } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ erro: 'ID invalido' });
+        }
+
+        const viaRemovida = await Via.findByIdAndDelete(id);
+
+        if (!viaRemovida) {
+            return res.status(404).json({ erro: 'Via nao encontrada' });
+        }
+
+        res.json({ mensagem: 'Via removida com sucesso', id: viaRemovida._id });
+
+    } catch (error) {
+
+        console.log(error);
+
+        res.status(500).json({ erro: 'Erro ao remover via' });
 
     }
 

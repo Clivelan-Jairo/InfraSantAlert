@@ -48,8 +48,7 @@
             <section class="layout-grid">
                 <article class="panel glass">
                     <div class="panel-head">
-                        <h2>Cadastrar nova via</h2>
-                        <p>Atualize ocorrencias de infraestrutura viaria em tempo real.</p>
+                        <h2>Cadastrar Nova Via</h2>
                     </div>
 
                     <form id="viaForm" class="form-grid">
@@ -92,17 +91,80 @@
                     </form>
                 </article>
 
-                <article class="panel">
+                <article class="panel panel-list">
                     <div class="panel-head list-head">
                         <div>
                             <h2>Vias cadastradas</h2>
-                            <p>Atualizacao automatica com base no banco de dados.</p>
                         </div>
-                        <button id="refreshBtn" class="btn-secondary" type="button">Atualizar</button>
+                        <div class="filters-card">
+                            <div class="filters-card-head">
+                                <!-- title removed as requested -->
+                            </div>
+
+                            <div class="filters-bar">
+                                <div class="filters-bar-left">
+                                    <div class="search-input-wrap">
+                                        <span class="filter-icon" aria-hidden="true">
+                                            <svg viewBox="0 0 24 24" role="presentation" focusable="false">
+                                                <path d="M10.5 4a6.5 6.5 0 1 0 4.13 11.55l4.41 4.4 1.41-1.41-4.4-4.41A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z" />
+                                            </svg>
+                                        </span>
+                                        <input id="searchInput" class="search-input" type="search" placeholder="Pesquisar rua..." aria-label="Pesquisar ruas" />
+                                    </div>
+                                </div>
+
+                                <div class="filters-bar-right">
+                                    <button id="filtersToggle" class="filters-toggle" type="button" aria-expanded="false" aria-controls="filtersPanel">
+                                        <span class="filters-toggle-icon" aria-hidden="true">
+                                            <svg viewBox="0 0 24 24" role="presentation" focusable="false">
+                                                <path d="M3 5h18l-7 8v5l-4 2v-7z" />
+                                            </svg>
+                                        </span>
+                                        Filtros
+                                    </button>
+
+                                    <div class="filters-actions">
+                                        <button id="refreshBtn" class="btn-secondary" type="button">Atualizar</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="filtersPanel" class="filters-panel" hidden>
+                                <div class="filters-grid">
+                                    <div class="filter-field">
+                                        <label for="statusFilter">Status</label>
+                                        <select id="statusFilter" class="select-filter" aria-label="Filtrar por status">
+                                            <option value="Todas">Todas</option>
+                                            <option value="Interditada">Interditadas</option>
+                                            <option value="Manutenção">Manutenção</option>
+                                            <option value="Liberada">Liberadas</option>
+                                        </select>
+                                    </div>
+                                    <div class="filter-field">
+                                        <label for="bairroFilter">Bairro</label>
+                                        <select id="bairroFilter" class="select-filter" aria-label="Filtrar por bairro">
+                                            <option value="">Todos os bairros</option>
+                                        </select>
+                                    </div>
+                                    <div class="filter-field">
+                                        <label for="sortSelect">Ordenar</label>
+                                        <select id="sortSelect" class="select-filter" aria-label="Ordenar">
+                                            <option value="recent">Mais recentes</option>
+                                            <option value="oldest">Mais antigas</option>
+                                            <option value="alpha">Ordem alfabética</option>
+                                            <option value="previsao">Previsão mais próxima</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div id="listState" class="list-state">Carregando dados...</div>
-                    <div id="viasList" class="vias-list" aria-live="polite"></div>
+                    <div class="table-wrap">
+                        <div id="resultCount" class="result-count" aria-live="polite"></div>
+                        <div id="viasList" class="vias-table-container" aria-live="polite"></div>
+                    </div>
                 </article>
             </section>
         </main>
