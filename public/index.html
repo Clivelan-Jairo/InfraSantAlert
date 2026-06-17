@@ -11,6 +11,13 @@
             rel="stylesheet"
         />
         <link rel="stylesheet" href="style.css?v=2" />
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+        <style>
+            .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+            .modal-overlay.hidden { display: none; }
+            .modal-content { max-width: 400px; width: 100%; background: #fff; padding: 24px; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+            .header-auth { display: flex; align-items: center; justify-content: flex-end; }
+        </style>
     </head>
     <body>
         <div class="bg-orb orb-a"></div>
@@ -25,7 +32,10 @@
                         <p class="subtitle">Monitoramento urbano de vias em Santarem</p>
                     </div>
                 </div>
-                <div class="header-badge">Painel Operacional Municipal</div>
+                <div class="header-actions" style="display:flex; gap:16px; align-items:center;">
+                    <div class="header-badge">Painel Operacional Municipal</div>
+                    <div id="headerAuth" class="header-auth"></div>
+                </div>
             </div>
         </header>
 
@@ -45,8 +55,37 @@
                 </article>
             </section>
 
+            <section id="adminDashboardPanel" class="admin-dashboard-panel" aria-label="Indicadores administrativos">
+                <article class="stat-card">
+                    <p>Ocorrencias pendentes</p>
+                    <strong id="totalOcorrenciasPendentes">0</strong>
+                </article>
+                <article class="stat-card warning">
+                    <p>Ocorrencias confirmadas</p>
+                    <strong id="totalOcorrenciasConfirmadas">0</strong>
+                </article>
+                <article class="stat-card success">
+                    <p>Ocorrencias resolvidas</p>
+                    <strong id="totalOcorrenciasResolvidas">0</strong>
+                </article>
+                <article class="stat-card danger">
+                    <p>Interdicoes ativas</p>
+                    <strong id="totalInterdicoesAtivas">0</strong>
+                </article>
+            </section>
+
+            <section id="topOcorrenciasPanel" class="top-occurrences-panel" aria-label="Top ocorrencias mais confirmadas">
+                <div class="panel-head">
+                    <h2>Top Ocorrencias Mais Confirmadas</h2>
+                </div>
+                <div id="topOcorrenciasList" class="top-occurrences-list">
+                    <p class="list-state">Nenhuma ocorrencia prioritaria carregada.</p>
+                </div>
+            </section>
+
             <section class="layout-grid">
-                <article class="panel glass">
+                <div style="display: flex; flex-direction: column; gap: 24px;">
+                <article class="panel glass" id="viaFormPanel">
                     <div class="panel-head">
                         <h2>Cadastrar Nova Via</h2>
                     </div>
@@ -83,13 +122,91 @@
                         </div>
 
                         <div class="form-actions field-full">
-                            <button id="submitBtn" type="submit" class="btn-primary">
+                            <div class="form-actions-row">
+                                <button id="submitBtn" type="submit" class="btn-primary">
                                 <span class="btn-text">Cadastrar via</span>
                                 <span class="btn-loader" aria-hidden="true"></span>
                             </button>
+                                <button id="clearSegmentBtn" type="button" class="btn-secondary">Limpar trecho</button>
+                            </div>
                         </div>
                     </form>
                 </article>
+
+                <article class="panel glass" id="ocorrenciaFormPanel">
+                    <div class="panel-head">
+                        <h2>Reportar Ocorrência</h2>
+                    </div>
+
+                    <form id="ocorrenciaForm" class="form-grid">
+                        <div class="field">
+                            <label for="ocorrenciaTipo">Tipo</label>
+                            <select id="ocorrenciaTipo" name="categoria" required>
+                                <option value="">Selecione</option>
+                                <option value="Buraco">Buraco</option>
+                                <option value="Iluminação">Iluminação</option>
+                                <option value="Alagamento">Alagamento</option>
+                                <option value="Lixo">Lixo</option>
+                                <option value="Sinalização">Sinalização</option>
+                                <option value="Outros">Outros</option>
+                            </select>
+                        </div>
+                        <div class="field field-full">
+                            <label for="ocorrenciaDescricao">Descrição</label>
+                            <textarea id="ocorrenciaDescricao" name="descricao" rows="4" placeholder="Descreva o problema encontrado" required></textarea>
+                        </div>
+                        <div class="field field-full">
+                            <label>Coordenadas</label>
+                            <div id="ocorrenciaCoords" class="coord-readout">Clique no mapa para selecionar o local</div>
+                            <input type="hidden" id="ocorrenciaLat" name="latitude">
+                            <input type="hidden" id="ocorrenciaLng" name="longitude">
+                        </div>
+                        <div class="form-actions field-full">
+                            <div class="form-actions-row">
+                                <button id="submitOcorrenciaBtn" type="submit" class="btn-primary">Enviar ocorrência</button>
+                                <button id="clearOcorrenciaBtn" type="button" class="btn-secondary">Limpar local</button>
+                            </div>
+                        </div>
+                    </form>
+                </article>
+
+                <article class="panel glass" id="ocorrenciasAdminPanel">
+                    <div class="panel-head admin-occurrence-head">
+                        <h2>Ocorrencias Reportadas</h2>
+                        <select id="ocorrenciaStatusFilter" class="select-filter" aria-label="Filtrar ocorrencias por status">
+                            <option value="todas">Todas</option>
+                            <option value="pendente">Pendentes</option>
+                            <option value="confirmada">Confirmadas</option>
+                            <option value="resolvida">Resolvidas</option>
+                            <option value="rejeitada">Rejeitadas</option>
+                        </select>
+                    </div>
+                    <div id="ocorrenciasAdminList" class="occurrence-admin-list">
+                        <p class="list-state">Nenhuma ocorrencia carregada.</p>
+                    </div>
+                </article>
+
+                <article class="panel glass" id="mapPanel">
+                    <div class="field field-full">
+                        <label id="mapLabel" for="map">Clique no mapa para selecionar o local da ocorrência</label>
+                        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+                            <button id="mapModeOcorrenciaBtn" type="button" class="btn-primary">Ocorrência</button>
+                            <button id="mapModeViaBtn" type="button" class="btn-secondary">Trecho de via</button>
+                            <button id="reloadMapBtn" type="button" class="btn-secondary" style="margin-left:auto">Recarregar mapa</button>
+                        </div>
+                        <div id="mapLegend" style="display:flex; gap:12px; font-size:12px; margin-bottom:8px; flex-wrap:wrap; padding: 6px 12px; background: rgba(255,255,255,0.8); border: 1px solid #e2e8f0; border-radius: 6px;">
+                            <div style="display:flex;align-items:center;gap:6px;"><span style="width:12px;height:12px;border-radius:50%;background:#6b7280;border:1px solid #fff;box-shadow:0 0 2px rgba(0,0,0,0.3);"></span> Ocorrência pendente</div>
+                            <div style="display:flex;align-items:center;gap:6px;"><span style="width:12px;height:12px;border-radius:50%;background:#eab308;border:1px solid #fff;box-shadow:0 0 2px rgba(0,0,0,0.3);"></span> Ocorrência confirmada</div>
+                            <div style="display:flex;align-items:center;gap:6px;"><span style="width:18px;height:4px;background:#dc2626;display:inline-block;"></span> Trecho interditado</div>
+                        </div>
+                        <div id="map" style="height:300px;border-radius:8px;border:1px solid #ddd"></div>
+                        <input type="hidden" id="fromLat" name="fromLat">
+                        <input type="hidden" id="fromLng" name="fromLng">
+                        <input type="hidden" id="toLat" name="toLat">
+                        <input type="hidden" id="toLng" name="toLng">
+                    </div>
+                </article>
+                </div>
 
                 <article class="panel panel-list">
                     <div class="panel-head list-head">
@@ -167,6 +284,7 @@
                     </div>
                 </article>
             </section>
+
         </main>
 
         <div id="toastStack" class="toast-stack" aria-live="assertive" aria-atomic="true"></div>
@@ -175,6 +293,52 @@
             <div class="container">InfraSantAlert • Plataforma de Inteligencia de Mobilidade Urbana</div>
         </footer>
 
+    <!-- Modals de Autenticacao -->
+    <div id="loginModal" class="modal-overlay hidden">
+        <div class="modal-content panel glass">
+            <h2 style="margin-bottom: 16px;">Acesso ao Painel</h2>
+            <form id="loginForm" class="form-grid">
+                <div class="field field-full">
+                    <label for="loginEmail">Email</label>
+                    <input id="loginEmail" type="email" name="email" placeholder="Seu email" required />
+                </div>
+                <div class="field field-full">
+                    <label for="loginSenha">Senha</label>
+                    <input id="loginSenha" type="password" name="senha" placeholder="Sua senha" required />
+                </div>
+                <div class="form-actions field-full" style="margin-top: 8px; display:flex; gap:8px;">
+                    <button type="submit" class="btn-primary">Entrar</button>
+                    <button type="button" class="btn-secondary js-close-modal">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="registerModal" class="modal-overlay hidden">
+        <div class="modal-content panel glass">
+            <h2 style="margin-bottom: 16px;">Criar Conta</h2>
+            <form id="registerForm" class="form-grid">
+                <div class="field field-full">
+                    <label for="regNome">Nome Completo</label>
+                    <input id="regNome" type="text" name="nome" placeholder="Seu nome" required />
+                </div>
+                <div class="field field-full">
+                    <label for="regEmail">Email</label>
+                    <input id="regEmail" type="email" name="email" placeholder="Seu email" required />
+                </div>
+                <div class="field field-full">
+                    <label for="regSenha">Senha</label>
+                    <input id="regSenha" type="password" name="senha" placeholder="Crie uma senha" required />
+                </div>
+                <div class="form-actions field-full" style="margin-top: 8px; display:flex; gap:8px;">
+                    <button type="submit" class="btn-primary">Cadastrar</button>
+                    <button type="button" class="btn-secondary js-close-modal">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
         <script src="script.js"></script>
     </body>
 </html>

@@ -203,6 +203,124 @@ body{
 
 }
 
+.admin-dashboard-panel{
+
+    display:none;
+
+    grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+
+    gap:15px;
+
+    margin-bottom:20px;
+
+}
+
+.top-occurrences-panel{
+
+    display:none;
+
+    background:white;
+
+    border:1px solid #e2e8f0;
+
+    border-radius:10px;
+
+    padding:18px;
+
+    box-shadow:0 2px 6px rgba(0,0,0,.05);
+
+    margin-bottom:20px;
+
+}
+
+.top-occurrences-list{
+
+    display:grid;
+
+    grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+
+    gap:12px;
+
+}
+
+.top-occurrence-item{
+
+    display:flex;
+
+    gap:12px;
+
+    align-items:flex-start;
+
+    border:1px solid #e2e8f0;
+
+    border-radius:8px;
+
+    padding:12px;
+
+    background:#f8fafc;
+
+}
+
+.top-occurrence-rank{
+
+    width:34px;
+
+    height:34px;
+
+    border-radius:8px;
+
+    background:#1e40af;
+
+    color:white;
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:center;
+
+    font-weight:800;
+
+    flex:0 0 auto;
+
+}
+
+.top-occurrence-body{
+
+    display:flex;
+
+    flex-direction:column;
+
+    gap:4px;
+
+    min-width:0;
+
+}
+
+.top-occurrence-body strong{
+
+    font-size:.95rem;
+
+}
+
+.top-occurrence-body span{
+
+    color:#1e40af;
+
+    font-weight:700;
+
+    font-size:.88rem;
+
+}
+
+.top-occurrence-body small{
+
+    color:#64748b;
+
+    font-size:.78rem;
+
+}
+
 /* =========================
    Layout
 ========================= */
@@ -823,6 +941,15 @@ body{
 
 }
 
+.coord-readout{
+    padding:10px 12px;
+    border-radius:8px;
+    border:1px dashed #94a3b8;
+    background:#f8fafc;
+    color:#475569;
+    font-size:.9rem;
+}
+
 .mini-btn{
 
     border:none;
@@ -979,6 +1106,186 @@ body{
 }
 
 /* =========================
+   Admin ocorrencias
+========================= */
+
+#ocorrenciasAdminPanel{
+
+    display:none;
+
+}
+
+.admin-occurrence-head{
+
+    gap:12px;
+
+}
+
+.admin-occurrence-head .select-filter{
+
+    min-width:150px;
+
+}
+
+.occurrence-admin-list{
+
+    display:flex;
+
+    flex-direction:column;
+
+    gap:12px;
+
+}
+
+.occurrence-admin-item{
+
+    border:1px solid #e2e8f0;
+
+    border-radius:8px;
+
+    padding:12px;
+
+    background:#fff;
+
+}
+
+.occurrence-admin-top{
+
+    display:flex;
+
+    align-items:flex-start;
+
+    justify-content:space-between;
+
+    gap:10px;
+
+    margin-bottom:8px;
+
+}
+
+.occurrence-admin-top h3{
+
+    font-size:1rem;
+
+}
+
+.occurrence-status{
+
+    padding:5px 10px;
+
+    border-radius:20px;
+
+    color:white;
+
+    font-size:.72rem;
+
+    font-weight:700;
+
+    white-space:nowrap;
+
+}
+
+.occurrence-status.pendente{
+
+    background:#6b7280;
+
+}
+
+.occurrence-status.confirmada{
+
+    background:#eab308;
+
+    color:#1e293b;
+
+}
+
+.occurrence-status.resolvida{
+
+    background:#16a34a;
+
+}
+
+.occurrence-status.rejeitada{
+
+    background:#dc2626;
+
+}
+
+.occurrence-admin-description{
+
+    font-size:.9rem;
+
+    line-height:1.45;
+
+    color:#334155;
+
+    margin-bottom:10px;
+
+}
+
+.occurrence-admin-details{
+
+    display:flex;
+
+    flex-direction:column;
+
+    gap:4px;
+
+    color:#64748b;
+
+    font-size:.8rem;
+
+    margin-bottom:10px;
+
+}
+
+.occurrence-admin-actions{
+
+    display:flex;
+
+    flex-wrap:wrap;
+
+    gap:8px;
+
+}
+
+.occurrence-admin-actions button:disabled{
+
+    opacity:.55;
+
+    cursor:not-allowed;
+
+}
+
+.occurrence-popup{
+
+    display:flex;
+
+    flex-direction:column;
+
+    gap:6px;
+
+    min-width:190px;
+
+}
+
+.occurrence-popup p{
+
+    margin:0;
+
+    line-height:1.4;
+
+}
+
+.occurrence-confirm-btn{
+
+    margin-top:4px;
+
+    width:100%;
+
+}
+
+/* =========================
    Toast
 ========================= */
 
@@ -1074,3 +1381,4 @@ body{
     }
 
 }
+
