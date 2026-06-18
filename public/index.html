@@ -13,40 +13,73 @@
         <link rel="stylesheet" href="style.css?v=2" />
         <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
         <style>
-            .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 9999; }
             .modal-overlay.hidden { display: none; }
-            .modal-content { max-width: 400px; width: 100%; background: #fff; padding: 24px; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
-            .header-auth { display: flex; align-items: center; justify-content: flex-end; }
+            .admin-stats-dock {
+              position: fixed;
+              left: 24px;
+              top: 50%;
+              bottom: auto;
+              transform: translateY(-50%);
+              right: auto;
+              width: 220px;
+              z-index: 800;
+              display: flex;
+              flex-direction: column;
+              gap: 8px;
+            }
+            .admin-hud-dock {
+              position: fixed;
+              right: 24px;
+              top: 50%;
+              bottom: auto;
+              transform: translateY(-50%);
+              z-index: 850;
+              display: flex;
+              flex-direction: column;
+              gap: 8px;
+            }
         </style>
     </head>
     <body>
-        <div class="bg-orb orb-a"></div>
-        <div class="bg-orb orb-b"></div>
-
         <header class="header">
             <div class="container header-content">
                 <div class="brand-wrap">
-                    <div class="brand-seal" aria-hidden="true">ISA</div>
+                    <div class="brand-seal" aria-hidden="true">
+                        <img class="brand-logo" src="assets/logo.png" alt="" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';" />
+                        <span class="brand-fallback">ISA</span>
+                    </div>
                     <div>
                         <h1>InfraSantAlert</h1>
-                        <p class="subtitle">Monitoramento urbano de vias em Santarem</p>
+                        <p class="subtitle">Monitoramento urbano de vias em Santarém</p>
                     </div>
                 </div>
+                <div class="omnibox" role="search">
+                    <input id="searchInput" class="search-input" type="search" placeholder="Buscar rua, bairro ou ocorrência" aria-label="Buscar rua, bairro ou ocorrência" />
+                </div>
                 <div class="header-actions" style="display:flex; gap:16px; align-items:center;">
-                    <div class="header-badge">Painel Operacional Municipal</div>
+                    <div class="header-badge">Painel operacional municipal</div>
                     <div id="headerAuth" class="header-auth"></div>
                 </div>
             </div>
         </header>
 
         <main class="container dashboard" id="dashboardRoot">
-            <section class="stats-grid" aria-label="Indicadores">
-                <article class="stat-card">
+            <section id="eventRadarPanel" class="panel radar-panel" aria-label="Radar de eventos">
+                <div class="panel-head">
+                    <h2>Radar de eventos</h2>
+                </div>
+                <div id="eventRadarList" class="radar-list">
+                    <p class="list-state">Carregando eventos...</p>
+                </div>
+            </section>
+
+            <section id="publicStatsPanel" class="stats-grid" aria-label="Indicadores">
+                <article id="totalViasCard" class="stat-card">
                     <p>Total de vias</p>
                     <strong id="totalVias">0</strong>
                 </article>
                 <article class="stat-card warning">
-                    <p>Em manutencao</p>
+                    <p>Em manutenção</p>
                     <strong id="totalManutencao">0</strong>
                 </article>
                 <article class="stat-card danger">
@@ -55,45 +88,55 @@
                 </article>
             </section>
 
-            <section id="adminDashboardPanel" class="admin-dashboard-panel" aria-label="Indicadores administrativos">
-                <article class="stat-card">
-                    <p>Ocorrencias pendentes</p>
-                    <strong id="totalOcorrenciasPendentes">0</strong>
-                </article>
-                <article class="stat-card warning">
-                    <p>Ocorrencias confirmadas</p>
-                    <strong id="totalOcorrenciasConfirmadas">0</strong>
+            <section id="adminDashboardPanel" class="admin-stats-dock" aria-label="Indicadores administrativos">
+                <article class="stat-card info">
+                    <p>Total de vias</p>
+                    <strong id="adminTotalVias">0</strong>
                 </article>
                 <article class="stat-card success">
-                    <p>Ocorrencias resolvidas</p>
-                    <strong id="totalOcorrenciasResolvidas">0</strong>
+                    <p>Liberadas</p>
+                    <strong id="adminTotalLiberadas">0</strong>
+                </article>
+                <article class="stat-card warning">
+                    <p>Em manutenção</p>
+                    <strong id="adminTotalManutencao">0</strong>
                 </article>
                 <article class="stat-card danger">
-                    <p>Interdicoes ativas</p>
-                    <strong id="totalInterdicoesAtivas">0</strong>
+                    <p>Interditadas</p>
+                    <strong id="adminTotalInterditadas">0</strong>
+                </article>
+                <article class="stat-card pending">
+                    <p>Ocorrências pendentes</p>
+                    <strong id="totalOcorrenciasPendentes">0</strong>
+                </article>
+                <article class="stat-card accent">
+                    <p>Ocorrências confirmadas</p>
+                    <strong id="totalOcorrenciasConfirmadas">0</strong>
                 </article>
             </section>
 
-            <section id="topOcorrenciasPanel" class="top-occurrences-panel" aria-label="Top ocorrencias mais confirmadas">
+            <section id="topOcorrenciasPanel" class="top-occurrences-panel" aria-label="Top ocorrências mais confirmadas">
                 <div class="panel-head">
-                    <h2>Top Ocorrencias Mais Confirmadas</h2>
+                    <h2>Top ocorrências mais confirmadas</h2>
                 </div>
                 <div id="topOcorrenciasList" class="top-occurrences-list">
-                    <p class="list-state">Nenhuma ocorrencia prioritaria carregada.</p>
+                    <p class="list-state">Nenhuma ocorrência prioritária carregada.</p>
                 </div>
             </section>
 
             <section class="layout-grid">
-                <div style="display: flex; flex-direction: column; gap: 24px;">
-                <article class="panel glass" id="viaFormPanel">
+                <div id="sideRailPanel" class="side-rail" aria-label="Painéis operacionais">
+                <article class="panel glass is-collapsed" id="viaFormPanel">
                     <div class="panel-head">
-                        <h2>Cadastrar Nova Via</h2>
+                        <h2>Nova interdição</h2>
+                        <button class="panel-toggle" type="button" aria-label="Alternar painel" data-toggle-panel="viaFormPanel">+</button>
                     </div>
 
+                    <div class="panel-body">
                     <form id="viaForm" class="form-grid">
                         <div class="field">
                             <label for="rua">Rua</label>
-                            <input id="rua" name="rua" placeholder="Ex.: Avenida Cuiaba" required />
+                            <input id="rua" name="rua" placeholder="Ex.: Avenida Cuiabá" required />
                         </div>
                         <div class="field">
                             <label for="bairro">Bairro</label>
@@ -103,12 +146,12 @@
                             <label for="status">Status</label>
                             <select id="status" name="status" required>
                                 <option value="Interditada">Interditada</option>
-                                <option value="Manutenção">Manutencao</option>
+                                <option value="Manutenção">Manutenção</option>
                                 <option value="Liberada">Liberada</option>
                             </select>
                         </div>
                         <div class="field">
-                            <label for="previsaoLiberacao">Previsao de liberacao</label>
+                            <label for="previsaoLiberacao">Previsão de liberação</label>
                             <input id="previsaoLiberacao" name="previsaoLiberacao" type="date" />
                         </div>
                         <div class="field field-full">
@@ -117,7 +160,7 @@
                                 id="motivo"
                                 name="motivo"
                                 rows="4"
-                                placeholder="Ex.: Recapeamento, manutencao de drenagem ou buracos"
+                                placeholder="Ex.: recapeamento, manutenção de drenagem ou buracos"
                             ></textarea>
                         </div>
 
@@ -131,18 +174,21 @@
                             </div>
                         </div>
                     </form>
+                    </div>
                 </article>
 
-                <article class="panel glass" id="ocorrenciaFormPanel">
+                <article class="panel glass is-collapsed" id="ocorrenciaFormPanel">
                     <div class="panel-head">
-                        <h2>Reportar Ocorrência</h2>
+                        <h2>Reportar ocorrência</h2>
+                        <button class="panel-toggle" type="button" aria-label="Alternar painel" data-toggle-panel="ocorrenciaFormPanel">+</button>
                     </div>
 
+                    <div class="panel-body">
                     <form id="ocorrenciaForm" class="form-grid">
                         <div class="field">
                             <label for="ocorrenciaTipo">Tipo</label>
                             <select id="ocorrenciaTipo" name="categoria" required>
-                                <option value="">Selecione</option>
+                                <option value="">Selecione um tipo de ocorrência</option>
                                 <option value="Buraco">Buraco</option>
                                 <option value="Iluminação">Iluminação</option>
                                 <option value="Alagamento">Alagamento</option>
@@ -164,32 +210,38 @@
                         <div class="form-actions field-full">
                             <div class="form-actions-row">
                                 <button id="submitOcorrenciaBtn" type="submit" class="btn-primary">Enviar ocorrência</button>
+                                <button id="closeOcorrenciaPanelBtn" type="button" class="btn-secondary">Cancelar</button>
                                 <button id="clearOcorrenciaBtn" type="button" class="btn-secondary">Limpar local</button>
                             </div>
                         </div>
                     </form>
+                    </div>
                 </article>
 
-                <article class="panel glass" id="ocorrenciasAdminPanel">
+                <article class="panel glass is-collapsed" id="ocorrenciasAdminPanel">
                     <div class="panel-head admin-occurrence-head">
-                        <h2>Ocorrencias Reportadas</h2>
-                        <select id="ocorrenciaStatusFilter" class="select-filter" aria-label="Filtrar ocorrencias por status">
+                        <h2>Ocorrências reportadas</h2>
+                        <select id="ocorrenciaStatusFilter" class="select-filter" aria-label="Filtrar ocorrências por status">
                             <option value="todas">Todas</option>
                             <option value="pendente">Pendentes</option>
                             <option value="confirmada">Confirmadas</option>
                             <option value="resolvida">Resolvidas</option>
                             <option value="rejeitada">Rejeitadas</option>
                         </select>
+                        <button class="panel-toggle" type="button" aria-label="Alternar painel" data-toggle-panel="ocorrenciasAdminPanel">+</button>
                     </div>
+                    <div class="panel-body">
                     <div id="ocorrenciasAdminList" class="occurrence-admin-list">
-                        <p class="list-state">Nenhuma ocorrencia carregada.</p>
+                        <p class="list-state">Nenhuma ocorrência carregada.</p>
+                    </div>
                     </div>
                 </article>
+                </div>
 
                 <article class="panel glass" id="mapPanel">
                     <div class="field field-full">
                         <label id="mapLabel" for="map">Clique no mapa para selecionar o local da ocorrência</label>
-                        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+                        <div class="hud-tools" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
                             <button id="mapModeOcorrenciaBtn" type="button" class="btn-primary">Ocorrência</button>
                             <button id="mapModeViaBtn" type="button" class="btn-secondary">Trecho de via</button>
                             <button id="reloadMapBtn" type="button" class="btn-secondary" style="margin-left:auto">Recarregar mapa</button>
@@ -199,6 +251,10 @@
                             <div style="display:flex;align-items:center;gap:6px;"><span style="width:12px;height:12px;border-radius:50%;background:#eab308;border:1px solid #fff;box-shadow:0 0 2px rgba(0,0,0,0.3);"></span> Ocorrência confirmada</div>
                             <div style="display:flex;align-items:center;gap:6px;"><span style="width:18px;height:4px;background:#dc2626;display:inline-block;"></span> Trecho interditado</div>
                         </div>
+                        <button id="reportOccurrenceFab" class="report-fab" type="button" aria-label="Reportar ocorrência">
+                            <span class="report-fab-tooltip">Deseja reportar uma ocorrência?</span>
+                            <span class="report-fab-icon" aria-hidden="true">+</span>
+                        </button>
                         <div id="map" style="height:300px;border-radius:8px;border:1px solid #ddd"></div>
                         <input type="hidden" id="fromLat" name="fromLat">
                         <input type="hidden" id="fromLng" name="fromLng">
@@ -206,9 +262,8 @@
                         <input type="hidden" id="toLng" name="toLng">
                     </div>
                 </article>
-                </div>
 
-                <article class="panel panel-list">
+                <article id="viasTablePanel" class="panel panel-list">
                     <div class="panel-head list-head">
                         <div>
                             <h2>Vias cadastradas</h2>
@@ -220,14 +275,7 @@
 
                             <div class="filters-bar">
                                 <div class="filters-bar-left">
-                                    <div class="search-input-wrap">
-                                        <span class="filter-icon" aria-hidden="true">
-                                            <svg viewBox="0 0 24 24" role="presentation" focusable="false">
-                                                <path d="M10.5 4a6.5 6.5 0 1 0 4.13 11.55l4.41 4.4 1.41-1.41-4.4-4.41A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z" />
-                                            </svg>
-                                        </span>
-                                        <input id="searchInput" class="search-input" type="search" placeholder="Pesquisar rua..." aria-label="Pesquisar ruas" />
-                                    </div>
+                                    <div class="search-input-wrap"></div>
                                 </div>
 
                                 <div class="filters-bar-right">
@@ -285,22 +333,51 @@
                 </article>
             </section>
 
+            <nav id="adminHudDock" class="admin-hud-dock" aria-label="Painéis administrativos">
+                <button id="openRadarPanelBtn" type="button" class="dock-btn" data-open-hud-panel="eventRadarPanel">Radar</button>
+                <button id="openViasPanelBtn" type="button" class="dock-btn" data-open-hud-panel="viasTablePanel">Vias</button>
+                <button id="openOcorrenciasPanelBtn" type="button" class="dock-btn" data-open-hud-panel="ocorrenciasAdminPanel">Ocorrências</button>
+                <button id="openRankingPanelBtn" type="button" class="dock-btn" data-open-hud-panel="topOcorrenciasPanel">Ranking</button>
+                <button id="openNovaInterdicaoPanelBtn" type="button" class="dock-btn" data-open-hud-panel="viaFormPanel">Nova interdição</button>
+            </nav>
+
+            <aside id="adminWorkspacePanel" class="admin-workspace-panel" aria-hidden="true">
+                <div class="admin-workspace-head">
+                    <h2 id="adminWorkspaceTitle">Painel administrativo</h2>
+                    <button id="adminWorkspaceCloseBtn" class="hud-panel-close" type="button" aria-label="Fechar painel">x</button>
+                </div>
+                <div id="adminWorkspaceContent" class="admin-workspace-content"></div>
+            </aside>
+
+            <div id="adminPanelParking" hidden></div>
+
         </main>
+
+        <aside id="contextDrawer" class="context-drawer" aria-label="Painel contextual" aria-hidden="true">
+            <div class="drawer-head">
+                <div>
+                    <div id="drawerKicker" class="drawer-kicker">Contexto</div>
+                    <h2 id="drawerTitle" class="drawer-title">Selecione um evento</h2>
+                </div>
+                <button id="drawerCloseBtn" class="drawer-close" type="button" aria-label="Fechar painel">x</button>
+            </div>
+            <div id="drawerContent"></div>
+        </aside>
 
         <div id="toastStack" class="toast-stack" aria-live="assertive" aria-atomic="true"></div>
 
         <footer class="footer">
-            <div class="container">InfraSantAlert • Plataforma de Inteligencia de Mobilidade Urbana</div>
+            <div class="container">InfraSantAlert • Plataforma de inteligência de mobilidade urbana</div>
         </footer>
 
-    <!-- Modals de Autenticacao -->
+    <!-- Modais de autenticação -->
     <div id="loginModal" class="modal-overlay hidden">
         <div class="modal-content panel glass">
-            <h2 style="margin-bottom: 16px;">Acesso ao Painel</h2>
+            <h2 style="margin-bottom: 16px;">Acesso ao painel</h2>
             <form id="loginForm" class="form-grid">
                 <div class="field field-full">
-                    <label for="loginEmail">Email</label>
-                    <input id="loginEmail" type="email" name="email" placeholder="Seu email" required />
+                    <label for="loginEmail">E-mail</label>
+                    <input id="loginEmail" type="email" name="email" placeholder="Seu e-mail" required />
                 </div>
                 <div class="field field-full">
                     <label for="loginSenha">Senha</label>
@@ -316,15 +393,15 @@
 
     <div id="registerModal" class="modal-overlay hidden">
         <div class="modal-content panel glass">
-            <h2 style="margin-bottom: 16px;">Criar Conta</h2>
+            <h2 style="margin-bottom: 16px;">Criar conta</h2>
             <form id="registerForm" class="form-grid">
                 <div class="field field-full">
-                    <label for="regNome">Nome Completo</label>
+                    <label for="regNome">Nome completo</label>
                     <input id="regNome" type="text" name="nome" placeholder="Seu nome" required />
                 </div>
                 <div class="field field-full">
-                    <label for="regEmail">Email</label>
-                    <input id="regEmail" type="email" name="email" placeholder="Seu email" required />
+                    <label for="regEmail">E-mail</label>
+                    <input id="regEmail" type="email" name="email" placeholder="Seu e-mail" required />
                 </div>
                 <div class="field field-full">
                     <label for="regSenha">Senha</label>

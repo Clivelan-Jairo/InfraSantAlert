@@ -26,6 +26,7 @@ let ocorrenciasCache = [];
 let ocorrenciasAdminList;
 let ocorrenciaStatusFilter;
 let viaPointLocation = null;
+let mapSelectionMode = null;
 let confirmacoesCache = {};
 let topOcorrenciasList;
 let adminDashboardPanel;
@@ -33,6 +34,36 @@ let totalOcorrenciasPendentesEl;
 let totalOcorrenciasConfirmadasEl;
 let totalOcorrenciasResolvidasEl;
 let totalInterdicoesAtivasEl;
+let eventRadarList;
+let contextDrawer;
+let drawerKicker;
+let drawerTitle;
+let drawerContent;
+let reportOccurrenceFab;
+let adminWorkspacePanel;
+let adminWorkspaceTitle;
+let adminWorkspaceContent;
+let adminPanelParking;
+let adminTotalViasEl;
+let adminTotalLiberadasEl;
+let adminTotalManutencaoEl;
+let adminTotalInterditadasEl;
+
+const ADMIN_HUD_PANEL_IDS = [
+  'eventRadarPanel',
+  'viasTablePanel',
+  'ocorrenciasAdminPanel',
+  'topOcorrenciasPanel',
+  'viaFormPanel',
+];
+
+const ADMIN_HUD_PANEL_TITLES = {
+  eventRadarPanel: 'Radar de eventos',
+  viasTablePanel: 'Vias cadastradas',
+  ocorrenciasAdminPanel: 'Ocorrências reportadas',
+  topOcorrenciasPanel: 'Top ocorrências mais confirmadas',
+  viaFormPanel: 'Nova interdição',
+};
 
 document.addEventListener('DOMContentLoaded', () => {
   viaForm = document.getElementById('viaForm');
@@ -50,13 +81,27 @@ document.addEventListener('DOMContentLoaded', () => {
   totalOcorrenciasConfirmadasEl = document.getElementById('totalOcorrenciasConfirmadas');
   totalOcorrenciasResolvidasEl = document.getElementById('totalOcorrenciasResolvidas');
   totalInterdicoesAtivasEl = document.getElementById('totalInterdicoesAtivas');
+  eventRadarList = document.getElementById('eventRadarList');
+  contextDrawer = document.getElementById('contextDrawer');
+  drawerKicker = document.getElementById('drawerKicker');
+  drawerTitle = document.getElementById('drawerTitle');
+  drawerContent = document.getElementById('drawerContent');
+  reportOccurrenceFab = document.getElementById('reportOccurrenceFab');
+  adminWorkspacePanel = document.getElementById('adminWorkspacePanel');
+  adminWorkspaceTitle = document.getElementById('adminWorkspaceTitle');
+  adminWorkspaceContent = document.getElementById('adminWorkspaceContent');
+  adminPanelParking = document.getElementById('adminPanelParking');
+  adminTotalViasEl = document.getElementById('adminTotalVias');
+  adminTotalLiberadasEl = document.getElementById('adminTotalLiberadas');
+  adminTotalManutencaoEl = document.getElementById('adminTotalManutencao');
+  adminTotalInterditadasEl = document.getElementById('adminTotalInterditadas');
 
   totalViasEl = document.getElementById('totalVias');
   totalManutencaoEl = document.getElementById('totalManutencao');
   totalInterditadasEl = document.getElementById('totalInterditadas');
 
   if (!viaForm || !viasList) {
-    console.error('Elementos principais do dashboard nao foram encontrados.');
+    console.error('Elementos principais do dashboard não foram encontrados.');
     return;
   }
 
@@ -81,10 +126,16 @@ document.addEventListener('DOMContentLoaded', () => {
   if (ocorrenciaStatusFilter) ocorrenciaStatusFilter.addEventListener('change', renderOcorrenciasAdmin);
   const clearOcorrenciaBtn = document.getElementById('clearOcorrenciaBtn');
   if (clearOcorrenciaBtn) clearOcorrenciaBtn.addEventListener('click', clearOcorrenciaDraft);
+  const closeOcorrenciaPanelBtn = document.getElementById('closeOcorrenciaPanelBtn');
+  if (closeOcorrenciaPanelBtn) closeOcorrenciaPanelBtn.addEventListener('click', closeOcorrenciaForm);
+  if (reportOccurrenceFab) reportOccurrenceFab.addEventListener('click', openOcorrenciaFloatingForm);
+  initAdminHudDock();
+  const adminWorkspaceCloseBtn = document.getElementById('adminWorkspaceCloseBtn');
+  if (adminWorkspaceCloseBtn) adminWorkspaceCloseBtn.addEventListener('click', closeHudPanels);
   const mapModeOcorrenciaBtn = document.getElementById('mapModeOcorrenciaBtn');
   const mapModeViaBtn = document.getElementById('mapModeViaBtn');
-  if (mapModeOcorrenciaBtn) mapModeOcorrenciaBtn.addEventListener('click', () => setMapMode('ocorrencia'));
-  if (mapModeViaBtn) mapModeViaBtn.addEventListener('click', () => setMapMode('via'));
+  if (mapModeOcorrenciaBtn) mapModeOcorrenciaBtn.addEventListener('click', () => activateMapSelectionMode('ocorrencia'));
+  if (mapModeViaBtn) mapModeViaBtn.addEventListener('click', () => activateMapSelectionMode('via'));
 
   searchInput = document.getElementById('searchInput');
   statusFilter = document.getElementById('statusFilter');
@@ -106,6 +157,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  initHudControls();
+
   // Eventos de fechamento dos modais
   document.querySelectorAll('.js-close-modal').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -125,8 +178,32 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+function initHudControls() {
+  document.querySelectorAll('[data-toggle-panel]').forEach((button) => {
+    const panelId = button.getAttribute('data-toggle-panel');
+    const panel = panelId ? document.getElementById(panelId) : null;
+    if (!panel) return;
+
+    button.textContent = panel.classList.contains('is-collapsed') ? '+' : '-';
+    button.addEventListener('click', () => {
+      panel.classList.toggle('is-collapsed');
+      button.textContent = panel.classList.contains('is-collapsed') ? '+' : '-';
+      setTimeout(() => {
+        if (map && typeof map.invalidateSize === 'function') map.invalidateSize();
+      }, 120);
+    });
+  });
+
+  const drawerCloseBtn = document.getElementById('drawerCloseBtn');
+  if (drawerCloseBtn) drawerCloseBtn.addEventListener('click', closeContextDrawer);
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeContextDrawer();
+  });
+}
+
 // ----------------------
-// Autenticacao (JWT)
+// Autenticação (JWT)
 // ----------------------
 
 function getToken() {
@@ -179,7 +256,7 @@ async function login(e) {
     currentUser = body.usuario;
     document.getElementById('loginModal').classList.add('hidden');
     form.reset();
-    showToast('Login realizado com sucesso', 'success');
+    showToast('Login realizado com sucesso.', 'success');
     updateAuthUI();
   } catch (err) {
     showToast(err.message, 'error');
@@ -205,7 +282,7 @@ async function register(e) {
     currentUser = body.usuario;
     document.getElementById('registerModal').classList.add('hidden');
     form.reset();
-    showToast('Cadastro realizado com sucesso', 'success');
+    showToast('Cadastro realizado com sucesso.', 'success');
     updateAuthUI();
   } catch (err) {
     showToast(err.message, 'error');
@@ -215,7 +292,7 @@ async function register(e) {
 function logout() {
   localStorage.removeItem('jwt_token');
   currentUser = null;
-  showToast('Logout realizado', 'info');
+  showToast('Sessão encerrada.', 'info');
   updateAuthUI();
 }
 
@@ -227,6 +304,11 @@ function updateAuthUI() {
   const topOcorrenciasPanelEl = document.getElementById('topOcorrenciasPanel');
   const adminDashboardPanelEl = document.getElementById('adminDashboardPanel');
   const mapLabel = document.getElementById('mapLabel');
+  const mapModeOcorrenciaBtn = document.getElementById('mapModeOcorrenciaBtn');
+  const mapModeViaBtn = document.getElementById('mapModeViaBtn');
+  const reloadMapBtn = document.getElementById('reloadMapBtn');
+  const perfil = getCurrentUserPerfil();
+  mapSelectionMode = null;
   
   if (currentUser) {
     headerAuth.innerHTML = '';
@@ -235,7 +317,8 @@ function updateAuthUI() {
     userLabel.style.marginRight = '15px';
     userLabel.style.fontSize = '14px';
     userLabel.style.fontWeight = '600';
-    userLabel.textContent = `Olá, ${currentUser.nome} (${currentUser.perfil})`;
+    const perfilSuffix = perfil === 'admin' ? ' (admin)' : '';
+    userLabel.textContent = `Olá, ${currentUser.nome}${perfilSuffix}`;
 
     const logoutBtn = document.createElement('button');
     logoutBtn.id = 'logoutBtn';
@@ -251,7 +334,13 @@ function updateAuthUI() {
       viaFormPanel.style.display = currentUser.perfil === 'admin' ? 'block' : 'none';
     }
     if (ocorrenciaFormPanel) {
-      ocorrenciaFormPanel.style.display = currentUser.perfil === 'usuario' ? 'block' : 'none';
+      const occurrencePanelOpen = perfil === 'usuario' && ocorrenciaFormPanel.classList.contains('is-open');
+      ocorrenciaFormPanel.hidden = false;
+      ocorrenciaFormPanel.style.display = occurrencePanelOpen ? 'block' : 'none';
+      if (!occurrencePanelOpen) {
+        ocorrenciaFormPanel.classList.remove('is-open');
+        ocorrenciaFormPanel.classList.remove('floating-occurrence-panel');
+      }
     }
     if (ocorrenciasAdminPanel) {
       ocorrenciasAdminPanel.style.display = currentUser.perfil === 'admin' ? 'block' : 'none';
@@ -260,11 +349,21 @@ function updateAuthUI() {
       topOcorrenciasPanelEl.style.display = currentUser.perfil === 'admin' ? 'block' : 'none';
     }
     if (adminDashboardPanelEl) {
-      adminDashboardPanelEl.style.display = currentUser.perfil === 'admin' ? 'grid' : 'none';
+      adminDashboardPanelEl.style.display = currentUser.perfil === 'admin' ? 'flex' : 'none';
     }
     if (mapLabel) {
       mapLabel.textContent = mapMode === 'via' ? 'Marcar trecho interditado (clique para definir início e fim)' : 'Clique no mapa para selecionar o local da ocorrência';
     }
+    if (mapModeOcorrenciaBtn) {
+      mapModeOcorrenciaBtn.style.display = 'none';
+      mapModeOcorrenciaBtn.textContent = 'Selecionar local da ocorrência';
+    }
+    if (mapModeViaBtn) {
+      mapModeViaBtn.style.display = perfil === 'admin' ? 'inline-flex' : 'none';
+      mapModeViaBtn.textContent = 'Trecho de via';
+    }
+    if (reloadMapBtn) reloadMapBtn.style.display = 'inline-flex';
+    updateReportOccurrenceFab();
   } else {
     headerAuth.innerHTML = `
       <button id="showLoginBtn" class="btn-primary" style="margin-right: 8px; padding: 6px 12px; font-size: 13px;">Login</button>
@@ -273,19 +372,32 @@ function updateAuthUI() {
     document.getElementById('showLoginBtn').addEventListener('click', () => document.getElementById('loginModal').classList.remove('hidden'));
     document.getElementById('showRegisterBtn').addEventListener('click', () => document.getElementById('registerModal').classList.remove('hidden'));
     if (viaFormPanel) viaFormPanel.style.display = 'none';
-    if (ocorrenciaFormPanel) ocorrenciaFormPanel.style.display = 'none';
+    if (ocorrenciaFormPanel) {
+      ocorrenciaFormPanel.hidden = true;
+      ocorrenciaFormPanel.style.display = 'none';
+      ocorrenciaFormPanel.classList.remove('is-open');
+      ocorrenciaFormPanel.classList.remove('floating-occurrence-panel');
+    }
     if (ocorrenciasAdminPanel) ocorrenciasAdminPanel.style.display = 'none';
     if (topOcorrenciasPanelEl) topOcorrenciasPanelEl.style.display = 'none';
     if (adminDashboardPanelEl) adminDashboardPanelEl.style.display = 'none';
+    if (mapModeOcorrenciaBtn) mapModeOcorrenciaBtn.style.display = 'none';
+    if (mapModeViaBtn) mapModeViaBtn.style.display = 'none';
+    if (reloadMapBtn) reloadMapBtn.style.display = 'inline-flex';
+    updateReportOccurrenceFab();
     if (mapLabel) {
-      mapLabel.textContent = 'Mapa de Monitoramento (Faça login para reportar ocorrências ou cadastrar trechos)';
+      mapLabel.textContent = 'Mapa de monitoramento (faça login para reportar ocorrências ou cadastrar trechos)';
     }
   }
-  
-  // Atualiza as acoes da tabela se for necessario
+
+  applyRoleVisibility();
+  setMapMode(getCurrentUserPerfil() === 'admin' ? 'via' : 'ocorrencia');
+
+  // Atualiza as ações da tabela se for necessário
   atualizarTabela();
   renderOcorrenciasAdmin();
   renderOcorrenciasOnMap(ocorrenciasCache);
+  renderEventRadar();
   loadTopOcorrencias();
   loadAdminDashboard();
 
@@ -295,6 +407,184 @@ function updateAuthUI() {
       map.invalidateSize();
     }
   }, 150);
+}
+
+function setVisible(elementOrId, visible, displayType = 'block') {
+  const el = typeof elementOrId === 'string'
+    ? document.getElementById(elementOrId)
+    : elementOrId;
+
+  if (!el) return;
+
+  el.hidden = !visible;
+  el.style.display = visible ? displayType : 'none';
+}
+
+function initAdminHudDock() {
+  ADMIN_HUD_PANEL_IDS.forEach((panelId) => {
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+
+    panel.classList.add('admin-hud-panel');
+    panel.hidden = true;
+    panel.style.display = 'none';
+
+    if (adminPanelParking && panel.parentElement !== adminPanelParking) {
+      adminPanelParking.appendChild(panel);
+    }
+  });
+
+  document.querySelectorAll('[data-open-hud-panel]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const panelId = button.getAttribute('data-open-hud-panel');
+      openHudPanel(panelId);
+      if (panelId === 'viaFormPanel') {
+        activateViaSegmentSelection();
+      }
+    });
+  });
+}
+
+function closeHudPanels() {
+  const shouldClearViaDraft = Boolean(
+    document.getElementById('viaFormPanel')?.classList.contains('is-open')
+  );
+
+  ADMIN_HUD_PANEL_IDS.forEach((panelId) => {
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+
+    panel.hidden = true;
+    panel.style.display = 'none';
+    panel.classList.remove('is-open');
+    panel.classList.add('is-collapsed');
+
+    const toggle = panel.querySelector('[data-toggle-panel]');
+    if (toggle) toggle.textContent = '+';
+
+    if (adminPanelParking && panel.parentElement !== adminPanelParking) {
+      adminPanelParking.appendChild(panel);
+    }
+  });
+
+  document.querySelectorAll('[data-open-hud-panel]').forEach((button) => {
+    button.classList.remove('is-active');
+  });
+
+  if (adminWorkspaceContent) adminWorkspaceContent.replaceChildren();
+  if (adminWorkspacePanel) {
+    adminWorkspacePanel.hidden = true;
+    adminWorkspacePanel.setAttribute('aria-hidden', 'true');
+    adminWorkspacePanel.classList.remove('is-open');
+  }
+
+  document.body.classList.remove('radar-open');
+
+  if (shouldClearViaDraft) {
+    clearSegment();
+    mapSelectionMode = null;
+    setMapMode('via');
+  }
+
+  setTimeout(() => {
+    if (map && typeof map.invalidateSize === 'function') map.invalidateSize();
+  }, 120);
+}
+
+function openHudPanel(panelId) {
+  if (!panelId || getCurrentUserPerfil() !== 'admin') return;
+
+  const panel = document.getElementById(panelId);
+  if (!panel) return;
+
+  closeHudPanels();
+
+  if (!adminWorkspacePanel || !adminWorkspaceContent) return;
+
+  panel.hidden = false;
+  panel.style.display = 'block';
+  panel.classList.add('is-open');
+  panel.classList.remove('is-collapsed');
+  adminWorkspaceContent.appendChild(panel);
+  adminWorkspacePanel.hidden = false;
+  adminWorkspacePanel.setAttribute('aria-hidden', 'false');
+  adminWorkspacePanel.classList.add('is-open');
+  if (adminWorkspaceTitle) {
+    adminWorkspaceTitle.textContent = ADMIN_HUD_PANEL_TITLES[panelId] || 'Painel administrativo';
+  }
+
+  if (panelId === 'eventRadarPanel') {
+    document.body.classList.add('radar-open');
+  } else {
+    document.body.classList.remove('radar-open');
+  }
+
+  const toggle = panel.querySelector('[data-toggle-panel]');
+  if (toggle) toggle.textContent = '-';
+
+  document.querySelectorAll('[data-open-hud-panel]').forEach((button) => {
+    button.classList.toggle('is-active', button.getAttribute('data-open-hud-panel') === panelId);
+  });
+
+  setTimeout(() => {
+    if (map && typeof map.invalidateSize === 'function') map.invalidateSize();
+  }, 120);
+}
+
+function activateViaSegmentSelection() {
+  if (!currentUser || getCurrentUserPerfil() !== 'admin') return;
+
+  mapSelectionMode = 'via';
+  setMapMode('via');
+  showToast('Clique no mapa para marcar início e fim do trecho.', 'info');
+}
+
+function applyRoleVisibility() {
+  const perfil = getCurrentUserPerfil();
+  const isVisitante = !currentUser;
+  const isUsuario = perfil === 'usuario';
+  const isAdmin = perfil === 'admin';
+
+  closeHudPanels();
+
+  setVisible('publicStatsPanel', !isAdmin, 'grid');
+  setVisible('totalViasCard', isAdmin);
+  setVisible('adminHudDock', isAdmin, 'flex');
+  setVisible('eventRadarPanel', false);
+  setVisible('viaFormPanel', false);
+  setVisible('viasTablePanel', false);
+  setVisible('ocorrenciasAdminPanel', false);
+  setVisible('topOcorrenciasPanel', false);
+  setVisible('adminDashboardPanel', isAdmin, 'flex');
+  setVisible('mapModeOcorrenciaBtn', false, 'inline-flex');
+  setVisible('mapModeViaBtn', isAdmin, 'inline-flex');
+  setVisible('reloadMapBtn', isAdmin, 'inline-flex');
+
+  const viaBtn = document.getElementById('mapModeViaBtn');
+  if (viaBtn) viaBtn.textContent = 'Trecho de via';
+
+  const occurrenceModeBtn = document.getElementById('mapModeOcorrenciaBtn');
+  if (occurrenceModeBtn) occurrenceModeBtn.textContent = 'Selecionar local da ocorrência';
+
+  const occurrencePanel = document.getElementById('ocorrenciaFormPanel');
+  const occurrencePanelOpen = Boolean(
+    isUsuario
+      && occurrencePanel
+      && occurrencePanel.classList.contains('is-open')
+  );
+
+  if (occurrencePanel && !occurrencePanelOpen) {
+    occurrencePanel.hidden = true;
+    occurrencePanel.style.display = 'none';
+    occurrencePanel.classList.remove('is-open');
+    occurrencePanel.classList.remove('floating-occurrence-panel');
+  }
+
+  if (isVisitante || isAdmin) {
+    closeOcorrenciaFloatingForm();
+  }
+
+  updateReportOccurrenceFab();
 }
 
 async function loadVias(showInfoToast) {
@@ -320,13 +610,14 @@ async function loadVias(showInfoToast) {
     atualizarTabela();
     renderViasOnMap(viasCache);
     updateStats(viasCache);
+    renderEventRadar();
 
     if (showInfoToast) {
       showToast('Lista atualizada com sucesso.', 'info');
     }
   } catch (err) {
     console.error('Erro ao carregar vias:', err);
-    setListState('Nao foi possivel carregar as vias no momento.');
+    setListState('Não foi possível carregar as vias no momento.');
     renderVias([]);
     updateStats([]);
     showToast(err.message || 'Falha ao carregar vias.', 'error');
@@ -402,13 +693,13 @@ function renderTabela(vias) {
   viasList.innerHTML = '';
 
   if (!vias || !vias.length) {
-    setListState('Nenhuma via encontrada');
+    setListState('Nenhuma via encontrada.');
     if (resultCount) resultCount.textContent = '0 resultados';
     return;
   }
 
   setListState('');
-  if (resultCount) resultCount.textContent = `${vias.length} resultado(s)`;
+  if (resultCount) resultCount.textContent = vias.length === 1 ? '1 resultado' : `${vias.length} resultados`;
 
   const table = document.createElement('table');
   table.className = 'vias-table';
@@ -439,6 +730,7 @@ function renderTabela(vias) {
         <td data-label="Previsão" class="td-previsao"><span class="previsao-text">${escapeHtml(formatDate(via.previsaoLiberacao) || 'Sem previsão')}</span></td>
         <td data-label="Cadastro">${formatDate(via.dataCadastro)}</td>
       `;
+    tr.addEventListener('click', () => openViaDrawer(via));
 
     let actionsHtml = '';
     if (currentUser && currentUser.perfil === 'admin') {
@@ -492,7 +784,7 @@ function initMap() {
 function initLeafletMap() {
   // Verificação defensiva: se Leaflet (L) não estiver disponível, mostrar mensagem
   if (typeof L === 'undefined') {
-    console.warn('Leaflet nao carregado: objeto L indefinido');
+    console.warn('Leaflet não carregado: objeto L indefinido');
     const mapEl = document.getElementById('map');
     if (mapEl) {
       mapEl.innerHTML = '<div class="map-error" style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;font-size:14px;">Mapa indisponível — verifique conexão ou extensões que bloqueiem recursos externos</div>';
@@ -516,18 +808,15 @@ function initLeafletMap() {
   if (reloadMapBtn) reloadMapBtn.addEventListener('click', () => { try { map.invalidateSize(); showToast('Mapa recarregado.', 'info'); } catch (e) {} });
 
   map.on('click', (e) => {
-    if (mapMode === 'via') {
-      handleMapClick(e.latlng);
-    } else {
-      setOcorrenciaDraftLocation(e.latlng);
-    }
+    handleOperationalMapClick(e.latlng);
   });
 
   setMapMode(mapMode);
 }
 
 function setMapMode(mode) {
-  mapMode = mode === 'via' ? 'via' : 'ocorrencia';
+  const perfil = getCurrentUserPerfil();
+  mapMode = mode === 'via' && perfil === 'admin' ? 'via' : 'ocorrencia';
 
   const mapLabel = document.getElementById('mapLabel');
   const ocorrenciaBtn = document.getElementById('mapModeOcorrenciaBtn');
@@ -535,24 +824,191 @@ function setMapMode(mode) {
 
   if (mapLabel) {
     mapLabel.textContent = mapMode === 'via'
-      ? 'Marcar trecho interditado (clique para definir início e fim)'
+      ? 'Clique no mapa para marcar início e fim do trecho'
       : 'Clique no mapa para selecionar o local da ocorrência';
   }
 
   if (ocorrenciaBtn && viaBtn) {
-    ocorrenciaBtn.className = mapMode === 'ocorrencia' ? 'btn-primary' : 'btn-secondary';
-    viaBtn.className = mapMode === 'via' ? 'btn-primary' : 'btn-secondary';
+    ocorrenciaBtn.className = mapSelectionMode === 'ocorrencia' ? 'btn-primary' : 'btn-secondary';
+    viaBtn.className = mapSelectionMode === 'via' ? 'btn-primary' : 'btn-secondary';
+  }
+}
+
+function activateMapSelectionMode(mode) {
+  const perfil = getCurrentUserPerfil();
+
+  if (!currentUser) return;
+
+  if (mode === 'ocorrencia' && perfil === 'usuario') {
+    mapSelectionMode = 'ocorrencia';
+    setMapMode('ocorrencia');
+    showToast('Clique no mapa para selecionar o local da ocorrência.', 'info');
+    return;
+  }
+
+  if (mode === 'via' && perfil === 'admin') {
+    mapSelectionMode = 'via';
+    setMapMode('via');
+    showToast('Clique no mapa para marcar início e fim do trecho.', 'info');
+  }
+}
+
+function updateReportOccurrenceFab() {
+  if (!reportOccurrenceFab) return;
+
+  const shouldShow = Boolean(currentUser && getCurrentUserPerfil() === 'usuario');
+  const occurrencePanel = document.getElementById('ocorrenciaFormPanel');
+  const panelOpen = Boolean(occurrencePanel && occurrencePanel.classList.contains('is-open'));
+
+  reportOccurrenceFab.style.display = shouldShow && !panelOpen ? 'inline-flex' : 'none';
+  reportOccurrenceFab.classList.toggle('is-hinting', shouldShow && !panelOpen);
+}
+
+function openOcorrenciaFloatingForm() {
+  const perfil = getCurrentUserPerfil();
+  if (perfil !== 'usuario') return;
+
+  const panel = document.getElementById('ocorrenciaFormPanel');
+  if (!panel) {
+    console.error('ocorrenciaFormPanel não encontrado');
+    return;
+  }
+
+  panel.hidden = false;
+  panel.style.display = 'block';
+  panel.style.opacity = '1';
+  panel.style.visibility = 'visible';
+  panel.style.pointerEvents = 'auto';
+  panel.classList.add('is-open');
+  panel.classList.add('floating-occurrence-panel');
+  panel.classList.remove('is-collapsed');
+
+  const body = panel.querySelector('.panel-body');
+  if (body) body.style.display = 'block';
+
+  const toggle = panel.querySelector('[data-toggle-panel]');
+  if (toggle) toggle.textContent = '-';
+
+  mapSelectionMode = 'ocorrencia';
+  setMapMode('ocorrencia');
+  if (reportOccurrenceFab) reportOccurrenceFab.style.display = 'none';
+  updateReportOccurrenceFab();
+  showToast('Clique no mapa para selecionar o local da ocorrência.', 'info');
+
+  setTimeout(() => {
+    if (map && typeof map.invalidateSize === 'function') map.invalidateSize();
+  }, 120);
+}
+
+function closeOcorrenciaFloatingForm() {
+  const panel = document.getElementById('ocorrenciaFormPanel');
+
+  if (panel) {
+    panel.hidden = true;
+    panel.style.display = 'none';
+    panel.style.opacity = '';
+    panel.style.visibility = '';
+    panel.style.pointerEvents = '';
+    panel.classList.remove('is-open');
+    panel.classList.remove('floating-occurrence-panel');
+    panel.classList.add('is-collapsed');
+
+    const body = panel.querySelector('.panel-body');
+    if (body) body.style.display = '';
+
+    const toggle = panel.querySelector('[data-toggle-panel]');
+    if (toggle) toggle.textContent = '+';
+  }
+
+  if (ocorrenciaForm) ocorrenciaForm.reset();
+  mapSelectionMode = null;
+  clearOcorrenciaSelection();
+  updateReportOccurrenceFab();
+}
+
+function openOcorrenciaForm() {
+  openOcorrenciaFloatingForm();
+}
+
+function closeOcorrenciaForm() {
+  closeOcorrenciaFloatingForm();
+}
+
+function clearOcorrenciaSelection() {
+  clearOcorrenciaDraft();
+}
+
+function openOccurrenceReportPanel() {
+  openOcorrenciaForm();
+  return;
+
+  if (!currentUser || getCurrentUserPerfil() !== 'usuario') return;
+
+  const occurrencePanel = document.getElementById('ocorrenciaFormPanel');
+  if (occurrencePanel) {
+    occurrencePanel.hidden = false;
+    occurrencePanel.style.display = 'block';
+    occurrencePanel.classList.add('is-open');
+    occurrencePanel.classList.remove('is-collapsed');
+    const toggle = occurrencePanel.querySelector('[data-toggle-panel]');
+    if (toggle) toggle.textContent = '-';
+  }
+
+  mapSelectionMode = 'ocorrencia';
+  setMapMode('ocorrencia');
+  updateReportOccurrenceFab();
+  showToast('Clique no mapa para selecionar o local da ocorrência.', 'info');
+
+  setTimeout(() => {
+    if (map && typeof map.invalidateSize === 'function') map.invalidateSize();
+  }, 120);
+}
+
+function closeOccurrenceReportPanel() {
+  closeOcorrenciaForm();
+  return;
+
+  const occurrencePanel = document.getElementById('ocorrenciaFormPanel');
+  if (ocorrenciaForm) ocorrenciaForm.reset();
+  clearOcorrenciaDraft();
+
+  if (occurrencePanel) {
+    occurrencePanel.hidden = true;
+    occurrencePanel.style.display = 'none';
+    occurrencePanel.classList.remove('is-open');
+    occurrencePanel.classList.add('is-collapsed');
+    const toggle = occurrencePanel.querySelector('[data-toggle-panel]');
+    if (toggle) toggle.textContent = '+';
+  }
+
+  updateReportOccurrenceFab();
+}
+
+function getCurrentUserPerfil() {
+  return String(currentUser?.perfil || '').toLowerCase();
+}
+
+function handleOperationalMapClick(latlng) {
+  const perfil = getCurrentUserPerfil();
+
+  if (!currentUser) return;
+
+  if (perfil === 'usuario') {
+    if (mapSelectionMode !== 'ocorrencia') return;
+    setOcorrenciaDraftLocation(latlng);
+    setMapMode('ocorrencia');
+    return;
+  }
+
+  if (perfil === 'admin') {
+    if (mapSelectionMode !== 'via') return;
+    handleMapClick(latlng);
+    return;
   }
 }
 
 function setOcorrenciaDraftLocation(latlng) {
-  if (!currentUser) {
-    showToast('Faça login para reportar uma ocorrência.', 'error');
-    return;
-  }
-  if (currentUser.perfil !== 'usuario') {
-    return;
-  }
+  if (!currentUser || getCurrentUserPerfil() !== 'usuario' || mapSelectionMode !== 'ocorrencia') return;
 
   const latInput = document.getElementById('ocorrenciaLat');
   const lngInput = document.getElementById('ocorrenciaLng');
@@ -565,8 +1021,18 @@ function setOcorrenciaDraftLocation(latlng) {
   coordsEl.textContent = `${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}`;
 
   if (ocorrenciaDraftMarker) {
-    ocorrenciaDraftMarker.setLatLng(latlng);
+    ocorrenciaDraftMarker.remove();
+    ocorrenciaDraftMarker = null;
   } else {
+    ocorrenciaDraftMarker = L.circleMarker(latlng, {
+      radius: 7,
+      fillColor: '#111827',
+      color: '#ffffff',
+      weight: 2,
+      fillOpacity: 0.9,
+    }).addTo(map).bindPopup('Local da ocorrência');
+  }
+  if (!ocorrenciaDraftMarker) {
     ocorrenciaDraftMarker = L.circleMarker(latlng, {
       radius: 7,
       fillColor: '#111827',
@@ -578,6 +1044,9 @@ function setOcorrenciaDraftLocation(latlng) {
 }
 
 function clearOcorrenciaDraft() {
+  mapSelectionMode = null;
+  setMapMode('ocorrencia');
+
   const latInput = document.getElementById('ocorrenciaLat');
   const lngInput = document.getElementById('ocorrenciaLng');
   const coordsEl = document.getElementById('ocorrenciaCoords');
@@ -592,6 +1061,8 @@ function clearOcorrenciaDraft() {
 }
 
 function handleMapClick(latlng) {
+  if (!currentUser || getCurrentUserPerfil() !== 'admin' || mapSelectionMode !== 'via') return;
+
   if (!fromMarker) {
     fromMarker = L.marker(latlng, { draggable: true }).addTo(map).bindPopup('Início').openPopup();
     fromMarker.on('dragend', () => updateHiddenInputsFromMarkers());
@@ -599,9 +1070,12 @@ function handleMapClick(latlng) {
     toMarker = L.marker(latlng, { draggable: true }).addTo(map).bindPopup('Fim').openPopup();
     toMarker.on('dragend', () => updateHiddenInputsFromMarkers());
     drawSegment();
+    mapSelectionMode = null;
+    setMapMode('via');
   } else {
     // se já existem ambos, substituir e reiniciar
     clearSegment();
+    mapSelectionMode = 'via';
     fromMarker = L.marker(latlng, { draggable: true }).addTo(map).bindPopup('Início').openPopup();
     fromMarker.on('dragend', () => updateHiddenInputsFromMarkers());
   }
@@ -650,6 +1124,9 @@ function updateHiddenInputsFromMarkers() {
 }
 
 function clearSegment() {
+  mapSelectionMode = null;
+  setMapMode('via');
+
   if (fromMarker) { fromMarker.remove(); fromMarker = null; }
   if (toMarker) { toMarker.remove(); toMarker = null; }
   if (segmentLine) { segmentLine.remove(); segmentLine = null; }
@@ -676,10 +1153,11 @@ function renderViasOnMap(vias) {
       try {
         const a = v.blockedSegment.from;
         const b = v.blockedSegment.to;
-        const line = L.polyline([[a.lat, a.lng], [b.lat, b.lng]], { color: 'red', weight: 4, opacity: 0.6 }).addTo(viasLayerGroup);
+        const line = L.polyline([[a.lat, a.lng], [b.lat, b.lng]], { color: '#FF3B30', weight: 5, opacity: 0.82 }).addTo(viasLayerGroup);
+        line.on('click', () => openViaDrawer(v));
         const mid = [(a.lat + b.lat) / 2, (a.lng + b.lng) / 2];
         const popup = `<strong>${escapeHtml(v.rua || '')}</strong><br/>${escapeHtml(v.bairro || '')}<br/>${escapeHtml(v.status || '')}`;
-        L.marker(mid).addTo(viasLayerGroup).bindPopup(popup);
+        L.marker(mid).addTo(viasLayerGroup).bindPopup(popup).on('click', () => openViaDrawer(v));
       } catch (err) {
         console.warn('Erro ao renderizar segmento da via', v._id, err);
       }
@@ -692,7 +1170,7 @@ function renderViasOnMap(vias) {
           return;
         }
         
-        L.marker([lat, lng]).addTo(viasLayerGroup).bindPopup(`<strong>${escapeHtml(v.rua || '')}</strong>`);
+        L.marker([lat, lng]).addTo(viasLayerGroup).bindPopup(`<strong>${escapeHtml(v.rua || '')}</strong>`).on('click', () => openViaDrawer(v));
       } catch (err) {
         // ignore
       }
@@ -717,6 +1195,7 @@ async function loadOcorrencias(showInfoToast) {
     confirmacoesCache = await loadConfirmacoesCounts(ocorrenciasCache);
     renderOcorrenciasOnMap(ocorrenciasCache);
     renderOcorrenciasAdmin();
+    renderEventRadar();
     if (showInfoToast) showToast('Ocorrências atualizadas com sucesso.', 'info');
   } catch (err) {
     console.error('Erro ao carregar ocorrências:', err);
@@ -725,6 +1204,7 @@ async function loadOcorrencias(showInfoToast) {
     confirmacoesCache = {};
     renderOcorrenciasOnMap([]);
     renderOcorrenciasAdmin();
+    renderEventRadar();
   }
 }
 
@@ -780,6 +1260,7 @@ function renderOcorrenciasOnMap(ocorrencias) {
     });
 
     marker.bindPopup(createOcorrenciaPopupContent(ocorrencia, status));
+    marker.on('click', () => openOcorrenciaDrawer(ocorrencia));
 
     ocorrenciasLayerGroup.addLayer(marker);
   });
@@ -820,6 +1301,318 @@ function appendPopupLine(container, label, value) {
   line.appendChild(strong);
   line.appendChild(document.createTextNode(value));
   container.appendChild(line);
+}
+
+function renderEventRadar() {
+  if (!eventRadarList) return;
+
+  const viaEvents = (viasCache || [])
+    .filter((via) => {
+      const status = normalizeStatus(via.status);
+      return status === 'interditada' || status === 'manutencao' || status === 'parcial';
+    })
+    .map((via) => ({
+      kind: 'via',
+      title: via.rua || 'Via sem nome',
+      type: via.status || 'Via',
+      status: normalizeStatus(via.status),
+      date: via.dataCadastro || via.updatedAt || via.createdAt,
+      source: via,
+    }));
+
+  const occurrenceEvents = (ocorrenciasCache || [])
+    .filter((ocorrencia) => {
+      const status = normalizeOcorrenciaStatus(ocorrencia.status);
+      return status !== 'resolvida' && status !== 'rejeitada';
+    })
+    .map((ocorrencia) => ({
+      kind: 'ocorrencia',
+    title: ocorrencia.rua || ocorrencia.categoria || ocorrencia.titulo || 'Ocorrência',
+    type: ocorrencia.categoria || 'Ocorrência',
+      status: normalizeOcorrenciaStatus(ocorrencia.status),
+      date: ocorrencia.dataCriacao || ocorrencia.createdAt,
+      source: ocorrencia,
+    }));
+
+  const events = viaEvents
+    .concat(occurrenceEvents)
+    .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
+    .slice(0, 12);
+
+  eventRadarList.innerHTML = '';
+
+  if (!events.length) {
+    const empty = document.createElement('p');
+    empty.className = 'list-state';
+    empty.textContent = 'Nenhum evento ativo.';
+    eventRadarList.appendChild(empty);
+    return;
+  }
+
+  events.forEach((event) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'radar-item';
+
+    const dot = document.createElement('span');
+    dot.className = `radar-dot ${getRadarSeverity(event)}`;
+
+    const main = document.createElement('span');
+    main.className = 'radar-main';
+
+    const title = document.createElement('span');
+    title.className = 'radar-title';
+    title.textContent = event.title;
+
+    const meta = document.createElement('span');
+    meta.className = 'radar-meta';
+    meta.textContent = `${event.type} · ${formatRadarStatus(event)}`;
+
+    const time = document.createElement('span');
+    time.className = 'radar-time';
+    time.textContent = formatTime(event.date);
+
+    main.appendChild(title);
+    main.appendChild(meta);
+    button.appendChild(dot);
+    button.appendChild(main);
+    button.appendChild(time);
+    button.addEventListener('click', () => {
+      if (event.kind === 'via') {
+        focusViaOnMap(event.source);
+        openViaDrawer(event.source);
+      } else {
+        focusOcorrenciaOnMap(event.source);
+        openOcorrenciaDrawer(event.source);
+      }
+    });
+
+    eventRadarList.appendChild(button);
+  });
+}
+
+function getRadarSeverity(event) {
+  if (event.kind === 'via' && event.status === 'interditada') return 'critical';
+  if (event.status === 'confirmada' || event.status === 'manutencao' || event.status === 'parcial') return 'warning';
+  return 'pending';
+}
+
+function formatRadarStatus(event) {
+  return event.kind === 'via' ? (event.source.status || 'via') : formatOcorrenciaStatus(event.status);
+}
+
+function formatTime(value) {
+  if (!value) return '--:--';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '--:--';
+  return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function openContextDrawer(kicker, title, sections, actions) {
+  if (!contextDrawer || !drawerKicker || !drawerTitle || !drawerContent) return;
+
+  drawerKicker.textContent = kicker;
+  drawerTitle.textContent = title;
+  drawerContent.innerHTML = '';
+
+  (sections || []).forEach((section) => {
+    const block = document.createElement('section');
+    block.className = 'drawer-section';
+
+    const heading = document.createElement('h3');
+    heading.textContent = section.title;
+    block.appendChild(heading);
+
+    (section.lines || []).forEach((line) => {
+      const p = document.createElement('p');
+      p.textContent = line;
+      block.appendChild(p);
+    });
+
+    drawerContent.appendChild(block);
+  });
+
+  if (actions && actions.length) {
+    const block = document.createElement('section');
+    block.className = 'drawer-section';
+    const heading = document.createElement('h3');
+    heading.textContent = 'Ações';
+    const actionWrap = document.createElement('div');
+    actionWrap.className = 'drawer-actions';
+
+    actions.forEach((action) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = action.className || 'mini-btn neutral';
+      button.textContent = action.label;
+      button.disabled = Boolean(action.disabled);
+      button.addEventListener('click', action.onClick);
+      actionWrap.appendChild(button);
+    });
+
+    block.appendChild(heading);
+    block.appendChild(actionWrap);
+    drawerContent.appendChild(block);
+  }
+
+  contextDrawer.classList.add('is-open');
+  contextDrawer.setAttribute('aria-hidden', 'false');
+}
+
+function closeContextDrawer() {
+  if (!contextDrawer) return;
+  contextDrawer.classList.remove('is-open');
+  contextDrawer.setAttribute('aria-hidden', 'true');
+}
+
+function openOcorrenciaDrawer(ocorrencia) {
+  if (!ocorrencia) return;
+
+  const status = normalizeOcorrenciaStatus(ocorrencia.status);
+  const actions = [];
+
+  if (canConfirmarOcorrencia(ocorrencia)) {
+    actions.push({
+      label: 'Confirmar ocorrência',
+      className: 'mini-btn neutral',
+      onClick: () => confirmarOcorrencia(ocorrencia._id),
+    });
+  }
+
+  if (currentUser && currentUser.perfil === 'admin') {
+    [
+      { status: 'confirmada', label: 'Confirmar', className: 'mini-btn neutral' },
+      { status: 'resolvida', label: 'Resolver', className: 'mini-btn success' },
+      { status: 'rejeitada', label: 'Rejeitar', className: 'mini-btn danger' },
+    ].forEach((action) => {
+      actions.push({
+        label: action.label,
+        className: action.className,
+        disabled: status === action.status,
+        onClick: () => updateOcorrenciaStatus(ocorrencia._id, action.status),
+      });
+    });
+
+    if (status === 'confirmada') {
+      actions.push({
+        label: 'Transformar em interdição',
+        className: 'mini-btn neutral',
+        onClick: () => transformarOcorrenciaEmVia(ocorrencia._id),
+      });
+    }
+  }
+
+  openContextDrawer('Ocorrência', ocorrencia.categoria || ocorrencia.titulo || 'Ocorrência', [
+    {
+      title: 'Descrição',
+      lines: [ocorrencia.descricao || 'Sem descrição informada.'],
+    },
+    {
+      title: 'Status',
+      lines: [
+        `Status: ${formatOcorrenciaStatus(status)}`,
+        `Confirmações: ${getConfirmacoesCount(ocorrencia._id)}`,
+        `Cadastro: ${formatDate(ocorrencia.dataCriacao)}`,
+        `Coordenadas: ${formatCoordinates(ocorrencia.latitude, ocorrencia.longitude)}`,
+      ],
+    },
+  ], actions);
+}
+
+function openViaDrawer(via) {
+  if (!via) return;
+
+  const status = normalizeStatus(via.status);
+  const actions = [];
+
+  if (currentUser && currentUser.perfil === 'admin') {
+    actions.push({
+      label: 'Editar',
+      className: 'mini-btn neutral',
+      onClick: () => {
+        openPanel('viaFormPanel');
+        editarVia(via._id);
+      },
+    });
+    actions.push({
+      label: 'Liberar',
+      className: 'mini-btn success',
+      disabled: status === 'liberada',
+      onClick: () => updateVia(via._id, { status: 'Liberada' }, 'Via marcada como liberada.'),
+    });
+    actions.push({
+      label: 'Excluir',
+      className: 'mini-btn danger',
+      onClick: () => excluirVia(via._id),
+    });
+  }
+
+  openContextDrawer('Via', via.rua || 'Via sem nome', [
+    {
+      title: 'Descrição',
+      lines: [
+        `Bairro: ${via.bairro || 'Não informado'}`,
+        `Motivo: ${via.motivo || 'Sem motivo informado.'}`,
+      ],
+    },
+    {
+      title: 'Status',
+      lines: [
+        `Status: ${via.status || 'Não informado'}`,
+        `Previsão: ${formatDate(via.previsaoLiberacao)}`,
+        `Cadastro: ${formatDate(via.dataCadastro)}`,
+      ],
+    },
+  ], actions);
+}
+
+function openPanel(panelId) {
+  if (ADMIN_HUD_PANEL_IDS.includes(panelId) && getCurrentUserPerfil() === 'admin') {
+    openHudPanel(panelId);
+    return;
+  }
+
+  const panel = document.getElementById(panelId);
+  if (!panel) return;
+  panel.classList.remove('is-collapsed');
+  const button = panel.querySelector('[data-toggle-panel]');
+  if (button) button.textContent = '-';
+  if (typeof panel.scrollIntoView === 'function') {
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+function focusOcorrenciaOnMap(ocorrencia) {
+  if (!map || !ocorrencia) return;
+  const lat = Number(ocorrencia.latitude);
+  const lng = Number(ocorrencia.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+  try {
+    map.setView([lat, lng], Math.max(map.getZoom(), 16));
+  } catch (err) {
+    console.warn('Erro ao focar ocorrência no mapa:', err);
+  }
+}
+
+function focusViaOnMap(via) {
+  if (!map || !via) return;
+  try {
+    if (via.blockedSegment && via.blockedSegment.from && via.blockedSegment.to) {
+      const a = via.blockedSegment.from;
+      const b = via.blockedSegment.to;
+      map.fitBounds(L.polyline([[a.lat, a.lng], [b.lat, b.lng]]).getBounds(), { padding: [80, 80] });
+      return;
+    }
+
+    if (via.location && via.location.coordinates && via.location.coordinates.length === 2) {
+      const [lng, lat] = via.location.coordinates;
+      if (Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0)) {
+        map.setView([lat, lng], Math.max(map.getZoom(), 16));
+      }
+    }
+  } catch (err) {
+    console.warn('Erro ao focar via no mapa:', err);
+  }
 }
 
 async function loadTopOcorrencias() {
@@ -979,7 +1772,7 @@ function renderOcorrenciasAdmin() {
   if (!ocorrencias.length) {
     const empty = document.createElement('p');
     empty.className = 'list-state';
-    empty.textContent = 'Nenhuma ocorrencia encontrada para o filtro selecionado.';
+    empty.textContent = 'Nenhuma ocorrência encontrada para o filtro selecionado.';
     ocorrenciasAdminList.appendChild(empty);
     return;
   }
@@ -998,7 +1791,7 @@ function createOcorrenciaAdminItem(ocorrencia) {
   top.className = 'occurrence-admin-top';
 
   const title = document.createElement('h3');
-  title.textContent = ocorrencia.categoria || ocorrencia.titulo || 'Ocorrencia';
+  title.textContent = ocorrencia.categoria || ocorrencia.titulo || 'Ocorrência';
 
   const statusPill = document.createElement('span');
   statusPill.className = `occurrence-status ${status}`;
@@ -1009,14 +1802,14 @@ function createOcorrenciaAdminItem(ocorrencia) {
 
   const description = document.createElement('p');
   description.className = 'occurrence-admin-description';
-  description.textContent = ocorrencia.descricao || 'Sem descricao informada.';
+  description.textContent = ocorrencia.descricao || 'Sem descrição informada.';
 
   const details = document.createElement('div');
   details.className = 'occurrence-admin-details';
 
   appendOccurrenceDetail(details, 'Data', formatDate(ocorrencia.dataCriacao));
   appendOccurrenceDetail(details, 'Coordenadas', formatCoordinates(ocorrencia.latitude, ocorrencia.longitude));
-  appendOccurrenceDetail(details, 'Usuario', formatOccurrenceUser(ocorrencia.usuarioId));
+  appendOccurrenceDetail(details, 'Usuário', formatOccurrenceUser(ocorrencia.usuarioId));
   appendOccurrenceDetail(details, 'Confirmações', String(getConfirmacoesCount(ocorrencia._id)));
 
   const actions = document.createElement('div');
@@ -1040,7 +1833,7 @@ function createOcorrenciaAdminItem(ocorrencia) {
     const transformButton = document.createElement('button');
     transformButton.type = 'button';
     transformButton.className = 'mini-btn neutral';
-    transformButton.textContent = 'Transformar em Interdição';
+    transformButton.textContent = 'Transformar em interdição';
     transformButton.addEventListener('click', () => transformarOcorrenciaEmVia(ocorrencia._id));
     actions.appendChild(transformButton);
   }
@@ -1062,12 +1855,12 @@ function appendOccurrenceDetail(container, label, value) {
 function formatCoordinates(latitude, longitude) {
   const lat = Number(latitude);
   const lng = Number(longitude);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return 'Nao informadas';
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return 'Não informadas';
   return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
 }
 
 function formatOccurrenceUser(usuario) {
-  if (!usuario) return 'Nao informado';
+  if (!usuario) return 'Não informado';
   if (typeof usuario === 'string') return usuario;
 
   const nome = usuario.nome || 'Sem nome';
@@ -1150,12 +1943,12 @@ async function confirmarOcorrencia(ocorrenciaId) {
 
 async function updateOcorrenciaStatus(ocorrenciaId, status) {
   if (!ocorrenciaId) {
-    showToast('Nao foi possivel identificar a ocorrencia.', 'error');
+    showToast('Não foi possível identificar a ocorrência.', 'error');
     return;
   }
 
   if (!currentUser || currentUser.perfil !== 'admin') {
-    showToast('Apenas administradores podem alterar ocorrencias.', 'error');
+    showToast('Apenas administradores podem alterar ocorrências.', 'error');
     return;
   }
 
@@ -1168,16 +1961,16 @@ async function updateOcorrenciaStatus(ocorrenciaId, status) {
 
     const body = await safeJson(res);
     if (!res.ok) {
-      throw new Error(getApiErrorMessage(body, 'Erro ao atualizar ocorrencia'));
+      throw new Error(getApiErrorMessage(body, 'Erro ao atualizar ocorrência'));
     }
 
-    showToast(`Ocorrencia atualizada para ${formatOcorrenciaStatus(status)}.`, 'success');
+    showToast(`Ocorrência atualizada para ${formatOcorrenciaStatus(status)}.`, 'success');
     await loadOcorrencias(false);
     await loadTopOcorrencias();
     await loadAdminDashboard();
   } catch (err) {
-    console.error('Erro ao atualizar ocorrencia:', err);
-    showToast(err.message || 'Falha ao atualizar ocorrencia.', 'error');
+    console.error('Erro ao atualizar ocorrência:', err);
+    showToast(err.message || 'Falha ao atualizar ocorrência.', 'error');
   }
 }
 
@@ -1210,6 +2003,7 @@ function transformarOcorrenciaEmVia(ocorrenciaId) {
   if (viaFormPanel) {
     viaFormPanel.style.display = 'block';
   }
+  openPanel('viaFormPanel');
 
   resetFormulario();
 
@@ -1244,7 +2038,7 @@ function transformarOcorrenciaEmVia(ocorrenciaId) {
     }, 150);
   }
 
-  showToast('Ocorrência carregada no formulário de Via. Revise e salve a interdição.', 'info');
+  showToast('Ocorrência carregada no formulário de via. Revise e salve a interdição.', 'info');
 }
 
 function popularFiltroBairros(vias) {
@@ -1270,7 +2064,7 @@ function renderVias(vias) {
   viasList.innerHTML = '';
 
   if (!vias || !vias.length) {
-    setListState('Nenhuma via cadastrada ate o momento.');
+  setListState('Nenhuma via cadastrada até o momento.');
     return;
   }
 
@@ -1280,15 +2074,20 @@ function renderVias(vias) {
 
 function updateStats(vias) {
   const total = vias.length;
+  const liberadas = vias.filter((v) => normalizeStatus(v.status) === 'liberada').length;
   const manutencao = vias.filter((v) => {
     const s = normalizeStatus(v.status);
     return s === 'manutencao' || s === 'parcial';
   }).length;
   const interditadas = vias.filter((v) => normalizeStatus(v.status) === 'interditada').length;
 
-  totalViasEl.textContent = String(total);
-  totalManutencaoEl.textContent = String(manutencao);
-  totalInterditadasEl.textContent = String(interditadas);
+  if (totalViasEl) totalViasEl.textContent = String(total);
+  if (totalManutencaoEl) totalManutencaoEl.textContent = String(manutencao);
+  if (totalInterditadasEl) totalInterditadasEl.textContent = String(interditadas);
+  if (adminTotalViasEl) adminTotalViasEl.textContent = String(total);
+  if (adminTotalLiberadasEl) adminTotalLiberadasEl.textContent = String(liberadas);
+  if (adminTotalManutencaoEl) adminTotalManutencaoEl.textContent = String(manutencao);
+  if (adminTotalInterditadasEl) adminTotalInterditadasEl.textContent = String(interditadas);
 }
 
 async function handleSubmit(event) {
@@ -1337,10 +2136,10 @@ async function handleSubmit(event) {
       const body = await safeJson(res);
 
       if (!res.ok) {
-        throw new Error(getApiErrorMessage(body, 'Erro ao salvar alteracoes'));
+        throw new Error(getApiErrorMessage(body, 'Erro ao salvar alterações'));
       }
 
-      showToast('Alteracoes salvas com sucesso.', 'success');
+      showToast('Alterações salvas com sucesso.', 'success');
       resetFormulario();
       await loadVias(false);
     } else {
@@ -1359,7 +2158,7 @@ async function handleSubmit(event) {
 
       viaForm.reset();
       clearSegment();
-      showToast('Via cadastrada com sucesso.', 'success');
+      showToast('Interdição cadastrada com sucesso.', 'success');
       await loadVias(false);
     }
   } catch (err) {
@@ -1412,8 +2211,7 @@ async function handleOcorrenciaSubmit(event) {
       throw new Error(getApiErrorMessage(body, 'Erro ao cadastrar ocorrência'));
     }
 
-    ocorrenciaForm.reset();
-    clearOcorrenciaDraft();
+    closeOcorrenciaForm();
     showToast('Ocorrência enviada com sucesso.', 'success');
     await loadOcorrencias(false);
   } catch (err) {
@@ -1424,7 +2222,7 @@ async function handleOcorrenciaSubmit(event) {
   }
 }
 
-// Preenche o formulario com os dados da via para edicao
+// Preenche o formulário com os dados da via para edição
 function carregarFormulario(via) {
   if (!via || !via._id) return;
 
@@ -1437,7 +2235,7 @@ function carregarFormulario(via) {
   viaForm.previsaoLiberacao.value = toDateInputValue(via.previsaoLiberacao) || '';
 
   currentEditId = via._id;
-  submitBtn.querySelector('.btn-text').textContent = 'Salvar Alterações';
+  submitBtn.querySelector('.btn-text').textContent = 'Salvar alterações';
   submitBtn.classList.add('editing');
   setSegmentFromVia(via);
 }
@@ -1508,7 +2306,7 @@ function resetFormulario() {
 
 // Inicia edicao: busca a via (já disponivel na listagem) e carrega no formulario
 function editarVia(id) {
-  if (!id) return showToast('ID invalido para edicao', 'error');
+  if (!id) return showToast('ID inválido para edição.', 'error');
 
   const via = viasCache.find((v) => String(v._id) === String(id));
   
@@ -1517,13 +2315,14 @@ function editarVia(id) {
     return;
   }
   
+  openPanel('viaFormPanel');
   window.scrollTo({ top: 0, behavior: 'smooth' });
   setTimeout(() => carregarFormulario(via), 150);
 }
 
 // Excluir via com confirmacao
 async function excluirVia(id) {
-  if (!id) return showToast('ID invalido', 'error');
+  if (!id) return showToast('ID inválido.', 'error');
 
   const confirmed = window.confirm('Deseja realmente excluir esta via?');
   if (!confirmed) return;
@@ -1532,7 +2331,7 @@ async function excluirVia(id) {
     const res = await fetch(`/vias/${encodeURIComponent(id)}`, { method: 'DELETE', headers: getAuthHeaders(false) });
     const body = await safeJson(res);
     if (!res.ok) throw new Error(getApiErrorMessage(body, 'Erro ao excluir via'));
-    showToast('Via excluida com sucesso.', 'success');
+    showToast('Via excluída com sucesso.', 'success');
     // Se estivermos editando essa via, resetar formulario
     if (currentEditId && String(currentEditId) === String(id)) resetFormulario();
     await loadVias(false);
@@ -1544,7 +2343,7 @@ async function excluirVia(id) {
 
 async function updateVia(viaId, payload, successMessage) {
   if (!viaId) {
-    showToast('Nao foi possivel identificar a via selecionada.', 'error');
+    showToast('Não foi possível identificar a via selecionada.', 'error');
     return;
   }
 
@@ -1628,7 +2427,7 @@ function escapeHtml(text) {
 }
 
 function formatDate(value) {
-  if (!value) return 'Nao informada';
+  if (!value) return 'Não informada';
 
   // Se for formato YYYY-MM-DD (sem hora), formatar diretamente para evitar shift de fuso
   try {
