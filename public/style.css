@@ -710,18 +710,41 @@ textarea{
     display:block;
 }
 
+#viaFormPanel.nova-interdicao-drawer{
+    position:fixed;
+    top:120px;
+    right:180px;
+    left:auto;
+    width:400px;
+    min-width:380px;
+    max-width:420px;
+    max-height:min(80vh,calc(100vh - 180px));
+    overflow-y:auto;
+    overflow-x:hidden;
+    z-index:950;
+    border:1px solid rgba(56,189,248,.35);
+    background:rgba(18,18,18,.92);
+    box-shadow:0 24px 70px rgba(0,0,0,.58), 0 0 34px rgba(56,189,248,.14);
+    backdrop-filter:blur(18px);
+}
+
+#viaFormPanel.nova-interdicao-drawer .panel-body{
+    display:block !important;
+}
+
 .admin-workspace-panel{
     position:fixed;
-    top:92px;
-    right:158px;
-    z-index:29;
-    width:clamp(380px,31vw,500px);
-    max-width:calc(100vw - 196px);
-    max-height:calc(100vh - 168px);
+    top:50%;
+    left:50%;
+    z-index:860;
+    width:80vw;
+    max-width:1400px;
+    height:75vh;
+    max-height:75vh;
     display:flex;
     flex-direction:column;
     gap:12px;
-    padding:14px;
+    padding:16px;
     border:1px solid var(--border);
     border-radius:12px;
     background:rgba(18,18,18,.90);
@@ -729,7 +752,7 @@ textarea{
     opacity:0;
     visibility:hidden;
     pointer-events:none;
-    transform:translateX(16px);
+    transform:translate(-50%,-48%);
     transition:opacity .18s ease, transform .18s ease, visibility .18s ease;
     backdrop-filter:blur(18px);
 }
@@ -738,7 +761,7 @@ textarea{
     opacity:1;
     visibility:visible;
     pointer-events:auto;
-    transform:translateX(0);
+    transform:translate(-50%,-50%);
 }
 
 .admin-workspace-panel[hidden],
@@ -764,6 +787,7 @@ textarea{
 
 .admin-workspace-content{
     min-height:0;
+    flex:1 1 auto;
     overflow:auto;
     padding-right:2px;
 }
@@ -778,6 +802,7 @@ textarea{
     width:100% !important;
     max-width:none !important;
     max-height:none !important;
+    height:100%;
     display:block !important;
     padding:0;
     border:0;
@@ -787,12 +812,15 @@ textarea{
 }
 
 .admin-workspace-content > #viasTablePanel.admin-hud-panel .table-wrap{
-    max-height:calc(100vh - 340px);
-    overflow:auto;
+    max-height:none;
+    height:calc(75vh - 156px);
+    overflow-y:auto;
+    overflow-x:hidden;
 }
 
 .admin-workspace-content > #viasTablePanel.admin-hud-panel .vias-table{
-    min-width:640px;
+    min-width:0;
+    width:100%;
 }
 
 .admin-workspace-content .panel-toggle{
@@ -1116,12 +1144,13 @@ select option{
 }
 
 .vias-table-container{
-    overflow:auto;
+    overflow-x:hidden;
+    overflow-y:visible;
 }
 
 .vias-table{
     width:100%;
-    min-width:680px;
+    min-width:0;
     border-collapse:collapse;
     table-layout:fixed;
 }
@@ -1135,6 +1164,7 @@ select option{
     vertical-align:top;
     font-size:.78rem;
     line-height:1.25;
+    overflow-wrap:anywhere;
 }
 
 .vias-table thead th{
@@ -1160,13 +1190,21 @@ select option{
 .vias-table th:nth-child(2),
 .vias-table td:nth-child(2){ width:12%; }
 .vias-table th:nth-child(3),
-.vias-table td:nth-child(3){ width:13%; }
+.vias-table td:nth-child(3){ width:12%; }
 .vias-table th:nth-child(4),
-.vias-table td:nth-child(4){ width:22%; }
+.vias-table td:nth-child(4){ width:24%; }
 .vias-table th:nth-child(5),
-.vias-table td:nth-child(5){ width:17%; }
+.vias-table td:nth-child(5){ width:13%; }
 .vias-table th:nth-child(6),
-.vias-table td:nth-child(6){ width:18%; }
+.vias-table td:nth-child(6){
+    width:260px;
+    min-width:260px;
+}
+
+.vias-table td.actions-cell{
+    vertical-align:middle;
+    white-space:nowrap;
+}
 
 .row-actions-row td{
     background:rgba(255,255,255,.035);
@@ -1175,6 +1213,19 @@ select option{
 
 .row-actions{
     justify-content:flex-end;
+}
+
+.vias-table .row-actions{
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    gap:8px;
+    flex-wrap:nowrap;
+    white-space:nowrap;
+}
+
+.vias-table .actions-cell .mini-btn{
+    flex:0 0 auto;
 }
 
 .badge,
@@ -1488,9 +1539,25 @@ select option{
     }
 
     .admin-workspace-panel{
-        right:18px;
-        width:min(450px,calc(100vw - 36px));
+        top:50%;
+        left:50%;
+        right:auto;
+        width:min(80vw,calc(100vw - 36px));
         max-width:calc(100vw - 36px);
+        height:75vh;
+        max-height:75vh;
+        transform:translate(-50%,-48%);
+    }
+
+    .admin-workspace-panel.is-open{
+        transform:translate(-50%,-50%);
+    }
+
+    #viaFormPanel.nova-interdicao-drawer{
+        right:120px;
+        width:380px;
+        min-width:0;
+        max-width:calc(100vw - 156px);
     }
 
     .admin-hud-dock{
@@ -1526,10 +1593,26 @@ select option{
     }
 
     .admin-workspace-panel{
+        top:54%;
+        left:10px;
+        right:10px;
+        width:auto;
+        max-width:none;
+        height:70vh;
+        max-height:70vh;
+        transform:translateY(-48%);
+    }
+
+    .admin-workspace-panel.is-open{
+        transform:translateY(-50%);
+    }
+
+    #viaFormPanel.nova-interdicao-drawer{
         top:150px;
         left:10px;
         right:10px;
         width:auto;
+        min-width:0;
         max-width:none;
         max-height:calc(100vh - 220px);
     }

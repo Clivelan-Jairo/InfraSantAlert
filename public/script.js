@@ -54,7 +54,6 @@ const ADMIN_HUD_PANEL_IDS = [
   'viasTablePanel',
   'ocorrenciasAdminPanel',
   'topOcorrenciasPanel',
-  'viaFormPanel',
 ];
 
 const ADMIN_HUD_PANEL_TITLES = {
@@ -116,7 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   viaForm.addEventListener('submit', handleSubmit);
   const clearSegmentBtn = document.getElementById('clearSegmentBtn');
-  if (clearSegmentBtn) clearSegmentBtn.addEventListener('click', clearSegment);
+  if (clearSegmentBtn) clearSegmentBtn.addEventListener('click', () => clearSegment({ keepViaMode: true }));
   refreshBtn.addEventListener('click', () => {
     loadVias(true);
     loadOcorrencias(false);
@@ -183,6 +182,12 @@ function initHudControls() {
     const panelId = button.getAttribute('data-toggle-panel');
     const panel = panelId ? document.getElementById(panelId) : null;
     if (!panel) return;
+
+    if (panelId === 'viaFormPanel') {
+      button.textContent = 'x';
+      button.addEventListener('click', closeViaFormDrawer);
+      return;
+    }
 
     button.textContent = panel.classList.contains('is-collapsed') ? '+' : '-';
     button.addEventListener('click', () => {
@@ -330,8 +335,9 @@ function updateAuthUI() {
 
     headerAuth.appendChild(userLabel);
     headerAuth.appendChild(logoutBtn);
-    if (viaFormPanel) {
-      viaFormPanel.style.display = currentUser.perfil === 'admin' ? 'block' : 'none';
+    if (viaFormPanel && !viaFormPanel.classList.contains('is-open')) {
+      viaFormPanel.hidden = true;
+      viaFormPanel.style.display = 'none';
     }
     if (ocorrenciaFormPanel) {
       const occurrencePanelOpen = perfil === 'usuario' && ocorrenciaFormPanel.classList.contains('is-open');
@@ -371,7 +377,11 @@ function updateAuthUI() {
     `;
     document.getElementById('showLoginBtn').addEventListener('click', () => document.getElementById('loginModal').classList.remove('hidden'));
     document.getElementById('showRegisterBtn').addEventListener('click', () => document.getElementById('registerModal').classList.remove('hidden'));
-    if (viaFormPanel) viaFormPanel.style.display = 'none';
+    if (viaFormPanel) {
+      viaFormPanel.hidden = true;
+      viaFormPanel.style.display = 'none';
+      viaFormPanel.classList.remove('is-open');
+    }
     if (ocorrenciaFormPanel) {
       ocorrenciaFormPanel.hidden = true;
       ocorrenciaFormPanel.style.display = 'none';
@@ -434,19 +444,36 @@ function initAdminHudDock() {
     }
   });
 
+  initViaFormDrawer();
+
   document.querySelectorAll('[data-open-hud-panel]').forEach((button) => {
     button.addEventListener('click', () => {
       const panelId = button.getAttribute('data-open-hud-panel');
-      openHudPanel(panelId);
       if (panelId === 'viaFormPanel') {
-        activateViaSegmentSelection();
+        openViaFormDrawer();
+        return;
       }
+      openHudPanel(panelId);
     });
   });
 }
 
+function initViaFormDrawer() {
+  const panel = document.getElementById('viaFormPanel');
+  if (!panel) return;
+
+  panel.classList.add('admin-hud-panel', 'nova-interdicao-drawer');
+  panel.hidden = true;
+  panel.style.display = 'none';
+
+  const dashboardRoot = document.getElementById('dashboardRoot');
+  if (dashboardRoot && panel.parentElement !== dashboardRoot) {
+    dashboardRoot.appendChild(panel);
+  }
+}
+
 function closeHudPanels() {
-  const shouldClearViaDraft = Boolean(
+  const shouldCloseViaDrawer = Boolean(
     document.getElementById('viaFormPanel')?.classList.contains('is-open')
   );
 
@@ -480,15 +507,61 @@ function closeHudPanels() {
 
   document.body.classList.remove('radar-open');
 
-  if (shouldClearViaDraft) {
-    clearSegment();
-    mapSelectionMode = null;
-    setMapMode('via');
-  }
+  if (shouldCloseViaDrawer) closeViaFormDrawer();
 
   setTimeout(() => {
     if (map && typeof map.invalidateSize === 'function') map.invalidateSize();
   }, 120);
+}
+
+function openViaFormDrawer() {
+  if (getCurrentUserPerfil() !== 'admin') return;
+
+  const panel = document.getElementById('viaFormPanel');
+  if (!panel) return;
+
+  closeHudPanels();
+
+  const dashboardRoot = document.getElementById('dashboardRoot');
+  if (dashboardRoot && panel.parentElement !== dashboardRoot) {
+    dashboardRoot.appendChild(panel);
+  }
+
+  panel.hidden = false;
+  panel.style.display = 'block';
+  panel.classList.add('admin-hud-panel', 'nova-interdicao-drawer', 'is-open');
+  panel.classList.remove('is-collapsed');
+
+  const toggle = panel.querySelector('[data-toggle-panel]');
+  if (toggle) toggle.textContent = 'x';
+
+  document.querySelectorAll('[data-open-hud-panel]').forEach((button) => {
+    button.classList.toggle('is-active', button.getAttribute('data-open-hud-panel') === 'viaFormPanel');
+  });
+
+  activateViaSegmentSelection();
+}
+
+function closeViaFormDrawer() {
+  const panel = document.getElementById('viaFormPanel');
+  if (!panel) return;
+
+  clearSegment();
+  mapSelectionMode = null;
+
+  panel.hidden = true;
+  panel.style.display = 'none';
+  panel.classList.remove('is-open');
+  panel.classList.add('is-collapsed');
+
+  const toggle = panel.querySelector('[data-toggle-panel]');
+  if (toggle) toggle.textContent = 'x';
+
+  document.querySelectorAll('[data-open-hud-panel]').forEach((button) => {
+    if (button.getAttribute('data-open-hud-panel') === 'viaFormPanel') {
+      button.classList.remove('is-active');
+    }
+  });
 }
 
 function openHudPanel(panelId) {
@@ -712,7 +785,7 @@ function renderTabela(vias) {
         <th>Status</th>
         <th>Motivo</th>
         <th>Previsão</th>
-        <th>Cadastro</th>
+        <th>A&ccedil;&otilde;es</th>
       </tr>
     `;
 
@@ -722,16 +795,6 @@ function renderTabela(vias) {
     const tr = document.createElement('tr');
     const statusClass = normalizeStatus(via.status);
 
-    tr.innerHTML = `
-        <td data-label="Rua">${escapeHtml(via.rua || '')}</td>
-        <td data-label="Bairro">${escapeHtml(via.bairro || '')}</td>
-        <td data-label="Status"><span class="badge ${statusClass}">${escapeHtml(via.status || '')}</span></td>
-        <td data-label="Motivo">${escapeHtml(via.motivo || '')}</td>
-        <td data-label="Previsão" class="td-previsao"><span class="previsao-text">${escapeHtml(formatDate(via.previsaoLiberacao) || 'Sem previsão')}</span></td>
-        <td data-label="Cadastro">${formatDate(via.dataCadastro)}</td>
-      `;
-    tr.addEventListener('click', () => openViaDrawer(via));
-
     let actionsHtml = '';
     if (currentUser && currentUser.perfil === 'admin') {
       actionsHtml += `<button class="mini-btn success js-liberar" data-id="${escapeHtml(via._id || '')}">Liberar</button>
@@ -739,37 +802,38 @@ function renderTabela(vias) {
                       <button class="mini-btn danger js-delete" data-id="${escapeHtml(via._id || '')}">Excluir</button>`;
     }
 
-    tbody.appendChild(tr);
-
-    if (actionsHtml) {
-      const actionsRow = document.createElement('tr');
-      actionsRow.className = 'row-actions-row';
-      actionsRow.innerHTML = `
-        <td colspan="6">
-          <div class="row-actions">
-            ${actionsHtml}
-          </div>
+    tr.innerHTML = `
+        <td data-label="Rua">${escapeHtml(via.rua || '')}</td>
+        <td data-label="Bairro">${escapeHtml(via.bairro || '')}</td>
+        <td data-label="Status"><span class="badge ${statusClass}">${escapeHtml(via.status || '')}</span></td>
+        <td data-label="Motivo">${escapeHtml(via.motivo || '')}</td>
+        <td data-label="Previsão" class="td-previsao"><span class="previsao-text">${escapeHtml(formatDate(via.previsaoLiberacao) || 'Sem previsão')}</span></td>
+        <td data-label="Acoes" class="actions-cell">
+          <div class="row-actions">${actionsHtml || '<span class="list-state">-</span>'}</div>
         </td>
       `;
-      
-      const actionsLiberarBtn = actionsRow.querySelector('.js-liberar');
-      const actionsEditBtn = actionsRow.querySelector('.js-edit');
-      const actionsDeleteBtn = actionsRow.querySelector('.js-delete');
+    tr.addEventListener('click', () => openViaDrawer(via));
 
-      if (actionsLiberarBtn) actionsLiberarBtn.addEventListener('click', async () => {
-        await updateVia(via._id, { status: 'Liberada' }, 'Via marcada como liberada.');
-      });
+    tbody.appendChild(tr);
 
-      if (actionsEditBtn) actionsEditBtn.addEventListener('click', () => {
-        editarVia(via._id);
-      });
+    const actionsLiberarBtn = tr.querySelector('.js-liberar');
+    const actionsEditBtn = tr.querySelector('.js-edit');
+    const actionsDeleteBtn = tr.querySelector('.js-delete');
 
-      if (actionsDeleteBtn) actionsDeleteBtn.addEventListener('click', async () => {
-        await excluirVia(via._id);
-      });
+    if (actionsLiberarBtn) actionsLiberarBtn.addEventListener('click', async (event) => {
+      event.stopPropagation();
+      await updateVia(via._id, { status: 'Liberada' }, 'Via marcada como liberada.');
+    });
 
-      tbody.appendChild(actionsRow);
-    }
+    if (actionsEditBtn) actionsEditBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      editarVia(via._id);
+    });
+
+    if (actionsDeleteBtn) actionsDeleteBtn.addEventListener('click', async (event) => {
+      event.stopPropagation();
+      await excluirVia(via._id);
+    });
   });
 
   table.appendChild(thead);
@@ -1123,8 +1187,9 @@ function updateHiddenInputsFromMarkers() {
   drawSegment();
 }
 
-function clearSegment() {
-  mapSelectionMode = null;
+function clearSegment(options = {}) {
+  const keepViaMode = Boolean(options.keepViaMode);
+  mapSelectionMode = keepViaMode ? 'via' : null;
   setMapMode('via');
 
   if (fromMarker) { fromMarker.remove(); fromMarker = null; }
@@ -1567,6 +1632,11 @@ function openViaDrawer(via) {
 }
 
 function openPanel(panelId) {
+  if (panelId === 'viaFormPanel' && getCurrentUserPerfil() === 'admin') {
+    openViaFormDrawer();
+    return;
+  }
+
   if (ADMIN_HUD_PANEL_IDS.includes(panelId) && getCurrentUserPerfil() === 'admin') {
     openHudPanel(panelId);
     return;
@@ -2000,9 +2070,6 @@ function transformarOcorrenciaEmVia(ocorrenciaId) {
   }
 
   const viaFormPanel = document.getElementById('viaFormPanel');
-  if (viaFormPanel) {
-    viaFormPanel.style.display = 'block';
-  }
   openPanel('viaFormPanel');
 
   resetFormulario();
